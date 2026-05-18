@@ -13,6 +13,7 @@ export default function Discover() {
     ratingMin: undefined,
     hideInPlex: true,
     hideMonitored: true,
+    userId: undefined,
   })
 
   const { data, isLoading, hasNextPage, fetchNextPage } = useRecommendations(filters)

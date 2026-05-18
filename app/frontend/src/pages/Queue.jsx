@@ -1,6 +1,14 @@
 import { useState } from 'react'
-import { Tv, Film, Loader2, Download, CheckCircle } from 'lucide-react'
+import { Tv, Film, Loader2, Download, CheckCircle, AlertCircle, Clock, HardDrive } from 'lucide-react'
 import { useQueueSonarr, useQueueRadarr } from '../hooks/useMedia'
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
 
 function QueueList({ items, type }) {
   if (!items || items.length === 0) {
@@ -20,13 +28,25 @@ function QueueList({ items, type }) {
 
         let statusIcon = <Loader2 className="w-4 h-4 animate-spin" />
         let statusColor = 'text-accent'
-        if (item.status === 'completed') {
+        let statusLabel = item.status
+        if (item.status === 'completed' || item.status === 'importing') {
           statusIcon = <CheckCircle className="w-4 h-4" />
           statusColor = 'text-score-high'
         } else if (item.status === 'downloading') {
           statusIcon = <Download className="w-4 h-4" />
           statusColor = 'text-score-mid'
+        } else if (item.status === 'failed') {
+          statusIcon = <AlertCircle className="w-4 h-4" />
+          statusColor = 'text-score-low'
+        } else if (item.status === 'queued' || item.status === 'added') {
+          statusIcon = <Clock className="w-4 h-4" />
+          statusColor = 'text-secondary'
         }
+
+        const showProgress = item.status === 'downloading' || item.status === 'importing'
+        const totalSize = item.size || 0
+        const leftSize = item.sizeleft || 0
+        const doneSize = totalSize - leftSize
 
         return (
           <div
@@ -37,30 +57,53 @@ function QueueList({ items, type }) {
               <img
                 src={posterUrl}
                 alt={item.title}
-                className="w-12 h-18 object-cover rounded-md shrink-0"
+                className="w-12 h-[72px] object-cover rounded-md shrink-0"
               />
             ) : (
-              <div className="w-12 h-[72px] bg-surface-elevated rounded-md shrink-0" />
+              <div className="w-12 h-[72px] bg-surface-elevated rounded-md shrink-0 flex items-center justify-center">
+                {type === 'sonarr' ? <Tv className="w-5 h-5 text-secondary" /> : <Film className="w-5 h-5 text-secondary" />}
+              </div>
             )}
             <div className="flex-1 min-w-0">
               <h3 className="font-medium truncate">{item.title}</h3>
-              <p className="text-sm text-secondary">{item.year}</p>
+              <div className="flex items-center gap-2 text-xs text-secondary mt-0.5">
+                {item.year && <span>{item.year}</span>}
+                {item.quality && (
+                  <span className="px-1.5 py-0.5 bg-surface-elevated rounded text-[10px]">
+                    {item.quality}
+                  </span>
+                )}
+                {item.protocol && (
+                  <span className="px-1.5 py-0.5 bg-surface-elevated rounded text-[10px] uppercase">
+                    {item.protocol}
+                  </span>
+                )}
+              </div>
             </div>
             <div className={`flex items-center gap-2 text-sm font-medium ${statusColor}`}>
               {statusIcon}
-              <span className="hidden sm:inline capitalize">{item.status}</span>
+              <span className="hidden sm:inline capitalize">{statusLabel}</span>
             </div>
-            {item.progress !== undefined && item.progress !== null && (
-              <div className="w-24 sm:w-32">
+            {showProgress && (
+              <div className="w-28 sm:w-40 space-y-1">
                 <div className="h-1.5 bg-surface-elevated rounded-full overflow-hidden">
                   <div
                     className="h-full bg-accent rounded-full transition-all"
                     style={{ width: `${Math.min(item.progress, 100)}%` }}
                   />
                 </div>
-                <p className="text-[10px] text-secondary text-right mt-0.5">
-                  {Math.round(item.progress)}%
-                </p>
+                <div className="flex items-center justify-between text-[10px] text-secondary">
+                  <span>{Math.round(item.progress)}%</span>
+                  {totalSize > 0 && (
+                    <span className="flex items-center gap-0.5">
+                      <HardDrive className="w-3 h-3" />
+                      {formatBytes(doneSize)} / {formatBytes(totalSize)}
+                    </span>
+                  )}
+                </div>
+                {item.timeleft && (
+                  <p className="text-[10px] text-secondary text-right">{item.timeleft} left</p>
+                )}
               </div>
             )}
           </div>
@@ -115,7 +158,7 @@ export default function Queue() {
             ))}
           </div>
         ) : (
-          <QueueList items={sonarrData?.items || []} type="sonarr" />
+          <QueueList items={sonarrData || []} type="sonarr" />
         )
       )}
 
@@ -127,7 +170,7 @@ export default function Queue() {
             ))}
           </div>
         ) : (
-          <QueueList items={radarrData?.items || []} type="radarr" />
+          <QueueList items={radarrData || []} type="radarr" />
         )
       )}
     </div>

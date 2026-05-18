@@ -35,20 +35,21 @@ def sync_plex_library(self):
     self.update_state(state="PROGRESS", meta={"progress": 0, "message": "Fetching Plex libraries..."})
 
     async def _run():
-        await create_task_status(self.request.id, self.name)
+        await create_task_status(self.request.id, self.name, status="running", progress=0, message="Fetching Plex libraries...")
         connector = PlexConnector()
         items = await connector.get_library()
         count = len(items)
-        self.update_state(state="PROGRESS", meta={"progress": 40, "message": f"Enriching {count} items with TMDB collections..."})
-        await update_task_status(self.request.id, status="running", progress=40, message=f"Enriching {count} items with TMDB collections...")
+        self.update_state(state="PROGRESS", meta={"progress": 5, "message": f"Fetched {count} items from Plex"})
+        await update_task_status(self.request.id, status="running", progress=5, message=f"Fetched {count} items from Plex")
 
         # Enrich movies with TMDB collection info
         tmdb = TMDBConnector()
         sem = asyncio.Semaphore(10)
 
+        movie_items = [item for item in items if item.get("category") == "movie" and item.get("tmdb_id")]
+        total_movies = len(movie_items)
+
         async def _enrich(item):
-            if item.get("category") != "movie" or not item.get("tmdb_id"):
-                return item
             async with sem:
                 details = await tmdb.get_movie_details(item["tmdb_id"])
             if details:
@@ -58,10 +59,28 @@ def sync_plex_library(self):
                     item["collection_name"] = collection.get("name")
             return item
 
-        enriched_items = await asyncio.gather(*[_enrich(item.copy()) for item in items])
+        # Process in chunks to report progress while keeping concurrency
+        chunk_size = max(1, total_movies // 10) if total_movies > 0 else 1
+        enriched_map = {}
+        for chunk_start in range(0, total_movies, chunk_size):
+            chunk = movie_items[chunk_start:chunk_start + chunk_size]
+            chunk_results = await asyncio.gather(*[_enrich(item.copy()) for item in chunk])
+            for orig, enriched in zip(chunk, chunk_results):
+                enriched_map[id(orig)] = enriched
+            progress = 5 + int((min(chunk_start + chunk_size, total_movies) / total_movies) * 55) if total_movies > 0 else 60
+            msg = f"Enriching TMDB collections... ({min(chunk_start + chunk_size, total_movies)}/{total_movies})"
+            self.update_state(state="PROGRESS", meta={"progress": progress, "message": msg})
+            await update_task_status(self.request.id, status="running", progress=progress, message=msg)
 
-        self.update_state(state="PROGRESS", meta={"progress": 70, "message": f"Saving {count} items..."})
-        await update_task_status(self.request.id, status="running", progress=70, message=f"Saving {count} items...")
+        enriched_items = []
+        for item in items:
+            if id(item) in enriched_map:
+                enriched_items.append(enriched_map[id(item)])
+            else:
+                enriched_items.append(item)
+
+        self.update_state(state="PROGRESS", meta={"progress": 60, "message": f"Saving {count} items..."})
+        await update_task_status(self.request.id, status="running", progress=60, message=f"Saving {count} items...")
 
         async with AsyncSessionLocal() as db:
             mappings = (await db.execute(select(PlexLibraryMapping))).scalars().all()
@@ -69,7 +88,7 @@ def sync_plex_library(self):
 
             # Truncate and refill approach for simplicity
             await db.execute(delete(PlexLibrary))
-            for item in enriched_items:
+            for i, item in enumerate(enriched_items):
                 section_key = item.get("section_key")
                 section_type = item.get("section_type")
                 mapped = mapping_dict.get(section_key)
@@ -100,6 +119,11 @@ def sync_plex_library(self):
                     added_date=datetime.utcnow(),
                 )
                 db.add(pl)
+                # Update progress every ~10%
+                if i % max(1, count // 10) == 0:
+                    progress = 60 + int((i / count) * 35)
+                    self.update_state(state="PROGRESS", meta={"progress": progress, "message": f"Saving item {i}/{count}..."})
+                    await update_task_status(self.request.id, status="running", progress=progress, message=f"Saving item {i}/{count}...")
             await db.commit()
 
         await update_task_status(self.request.id, status="success", progress=100, result={"synced": count})
@@ -129,16 +153,16 @@ def sync_tautulli_stats(self, previous_result=None):
     self.update_state(state="PROGRESS", meta={"progress": 0, "message": "Fetching Tautulli stats..."})
 
     async def _run():
-        await create_task_status(self.request.id, self.name)
+        await create_task_status(self.request.id, self.name, status="running", progress=0, message="Fetching Tautulli stats...")
         connector = TautulliConnector()
         stats = await connector.get_watch_stats()
         count = len(stats)
-        self.update_state(state="PROGRESS", meta={"progress": 50, "message": f"Saving {count} stats..."})
-        await update_task_status(self.request.id, status="running", progress=50, message=f"Saving {count} stats...")
+        self.update_state(state="PROGRESS", meta={"progress": 10, "message": f"Fetched {count} stats from Tautulli"})
+        await update_task_status(self.request.id, status="running", progress=10, message=f"Fetched {count} stats from Tautulli")
 
         async with AsyncSessionLocal() as db:
             await db.execute(delete(TautulliStats))
-            for s in stats:
+            for i, s in enumerate(stats):
                 last_watched_raw = s.get("last_watched")
                 last_watched = datetime.fromtimestamp(last_watched_raw) if last_watched_raw else None
                 ts = TautulliStats(
@@ -149,6 +173,10 @@ def sync_tautulli_stats(self, previous_result=None):
                     last_watched=last_watched,
                 )
                 db.add(ts)
+                if i % max(1, count // 10) == 0:
+                    progress = 10 + int((i / count) * 85)
+                    self.update_state(state="PROGRESS", meta={"progress": progress, "message": f"Saving stat {i}/{count}..."})
+                    await update_task_status(self.request.id, status="running", progress=progress, message=f"Saving stat {i}/{count}...")
             await db.commit()
 
         await update_task_status(self.request.id, status="success", progress=100, result={"synced": count})
@@ -178,7 +206,7 @@ def refresh_external_classics(self, previous_result=None):
     self.update_state(state="PROGRESS", meta={"progress": 0, "message": "Fetching external classics..."})
 
     async def _run():
-        await create_task_status(self.request.id, self.name)
+        await create_task_status(self.request.id, self.name, status="running", progress=0, message="Fetching external classics...")
         tmdb = TMDBConnector()
         anilist = AniListConnector()
 
@@ -292,6 +320,9 @@ def refresh_external_classics(self, previous_result=None):
                 logger.error(f"AniList page {page} error: {exc}")
 
         # Deduplicate by tmdb_id: keep the entry with the best score_external
+        self.update_state(state="PROGRESS", meta={"progress": 76, "message": "Deduplicating by TMDB ID..."})
+        await update_task_status(self.request.id, status="running", progress=76, message="Deduplicating by TMDB ID...")
+
         seen_tmdb = {}
         deduped_items = []
         for item in all_items:
@@ -309,6 +340,9 @@ def refresh_external_classics(self, previous_result=None):
         all_items = deduped_items
 
         # Second pass: deduplicate by normalized title (AniList vs TMDB without tmdb_id)
+        self.update_state(state="PROGRESS", meta={"progress": 78, "message": "Deduplicating by title..."})
+        await update_task_status(self.request.id, status="running", progress=78, message="Deduplicating by title...")
+
         def _norm(title):
             if not title:
                 return ""
@@ -330,13 +364,17 @@ def refresh_external_classics(self, previous_result=None):
         final_items.extend(seen_title.values())
         all_items = final_items
 
+        self.update_state(state="PROGRESS", meta={"progress": 80, "message": f"Saving {len(all_items)} items to database..."})
+        await update_task_status(self.request.id, status="running", progress=80, message=f"Saving {len(all_items)} items to database...")
+
         async with AsyncSessionLocal() as db:
             # Upsert logic: delete old entries from these sources and insert new ones
             for source in ("tmdb", "anilist"):
                 await db.execute(
                     delete(ExternalClassics).where(ExternalClassics.source_api == source)
                 )
-            for item in all_items:
+            total = len(all_items)
+            for i, item in enumerate(all_items):
                 try:
                     cat_enum = CategoryEnum(item["category"])
                 except ValueError:
@@ -357,6 +395,10 @@ def refresh_external_classics(self, previous_result=None):
                     is_recommended=item.get("is_recommended", False),
                 )
                 db.add(ec)
+                if i % max(1, total // 10) == 0:
+                    progress = 80 + int((i / total) * 18)
+                    self.update_state(state="PROGRESS", meta={"progress": progress, "message": f"Saving item {i}/{total}..."})
+                    await update_task_status(self.request.id, status="running", progress=progress, message=f"Saving item {i}/{total}...")
             await db.commit()
 
         await update_task_status(self.request.id, status="success", progress=100, result={"synced": len(all_items)})

@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTasks } from '../hooks/useTasks'
+import { useToast } from '../contexts/ToastContext'
 import { CheckCircle, XCircle, Loader2, Zap } from 'lucide-react'
 
 export default function TaskMonitor() {
   const { data: tasks } = useTasks()
+  const { addToast } = useToast()
   const prevTasksRef = useRef([])
-  const [toasts, setToasts] = useState([])
+  // Keep recently-completed tasks visible briefly for a smoother UX
+  const [recentDone, setRecentDone] = useState([])
 
   const activeTasks = (tasks || []).filter((t) => t.status === 'running')
-  const hasActive = activeTasks.length > 0
+  const hasActive = activeTasks.length > 0 || recentDone.length > 0
 
   useEffect(() => {
     if (!tasks) {
@@ -21,28 +24,40 @@ export default function TaskMonitor() {
       (tasks || []).filter((t) => t.status === 'running').map((t) => t.task_id)
     )
 
-    const completed = prevRunning.filter((t) => !currentRunningIds.has(t.task_id))
+    const justFinished = prevRunning.filter((t) => !currentRunningIds.has(t.task_id))
 
-    completed.forEach((t) => {
-      const success = t.status === 'success'
-      const toast = {
-        id: `${t.task_id}-${Date.now()}`,
-        name: t.task_name || 'Task',
-        success,
-        message: success ? 'Completed successfully' : t.message || 'Failed',
+    justFinished.forEach((t) => {
+      const currentTask = (tasks || []).find((ct) => ct.task_id === t.task_id)
+      const success = currentTask?.status === 'success'
+      addToast({
+        type: success ? 'success' : 'error',
+        title: t.task_name || 'Task',
+        message: success ? 'Completed successfully' : currentTask?.message || 'Failed',
+      })
+
+      // Keep task visible in overlay for 3s after completion
+      const doneTask = {
+        ...currentTask,
+        _doneAt: Date.now(),
       }
-      setToasts((prev) => [...prev, toast])
+      setRecentDone((prev) => [...prev, doneTask])
       setTimeout(() => {
-        setToasts((prev) => prev.filter((x) => x.id !== toast.id))
-      }, 4000)
+        setRecentDone((prev) => prev.filter((x) => x.task_id !== t.task_id))
+      }, 3000)
     })
 
     prevTasksRef.current = tasks
   }, [tasks])
 
+  // Merge active + recently-done for display
+  const displayTasks = [
+    ...activeTasks,
+    ...recentDone.filter((d) => !activeTasks.find((a) => a.task_id === d.task_id)),
+  ]
+
   return (
     <>
-      {/* Main progress overlay - always visible during sync */}
+      {/* Main progress overlay - visible during sync + brief moment after */}
       {hasActive && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-surface border border-border rounded-xl p-8 w-full max-w-md shadow-2xl mx-4">
@@ -57,21 +72,26 @@ export default function TaskMonitor() {
             </div>
 
             <div className="space-y-5">
-              {activeTasks.map((task) => (
-                <div key={task.task_id} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-primary">{task.task_name}</span>
-                    <span className="text-accent font-bold">{task.progress ?? 0}%</span>
+              {displayTasks.map((task) => {
+                const isDone = task.status === 'success' || task.status === 'failure'
+                return (
+                  <div key={task.task_id} className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-primary">{task.task_name}</span>
+                      <span className="text-accent font-bold">{task.progress ?? 0}%</span>
+                    </div>
+                    <div className="h-3 bg-surface-elevated rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ease-out ${
+                          isDone ? 'bg-green-500' : 'bg-accent'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(0, task.progress ?? 0))}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-secondary">{task.message || 'Working...'}</p>
                   </div>
-                  <div className="h-3 bg-surface-elevated rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-accent rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${Math.min(100, Math.max(0, task.progress ?? 0))}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-secondary">{task.message || 'Working...'}</p>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             <div className="mt-6 flex items-center justify-center gap-2 text-sm text-secondary">
@@ -82,19 +102,28 @@ export default function TaskMonitor() {
         </div>
       )}
 
-      {/* Sticky mini-bar for quick view (shows below navbar when not in overlay) */}
+      {/* Sticky mini-bar for quick view */}
       {hasActive && (
         <div className="sticky top-16 z-40 bg-surface/95 backdrop-blur border-b border-border px-4 py-2">
           <div className="max-w-7xl mx-auto flex items-center gap-3">
             <Loader2 className="w-4 h-4 animate-spin text-accent" />
             <span className="text-sm font-medium text-primary">
-              {activeTasks.length} sync task(s) running...
+              {activeTasks.length > 0
+                ? `${activeTasks.length} sync task(s) running...`
+                : 'Finishing up...'}
             </span>
             <div className="flex-1 h-1.5 bg-surface-elevated rounded-full overflow-hidden">
               <div
                 className="h-full bg-accent rounded-full transition-all"
                 style={{
-                  width: `${Math.min(100, Math.max(0, activeTasks.reduce((a, t) => a + (t.progress ?? 0), 0) / activeTasks.length))}%`,
+                  width: `${Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      displayTasks.reduce((a, t) => a + (t.progress ?? 0), 0) /
+                        displayTasks.length
+                    )
+                  )}%`,
                 }}
               />
             </div>
@@ -102,27 +131,7 @@ export default function TaskMonitor() {
         </div>
       )}
 
-      {/* Toasts */}
-      <div className="fixed bottom-4 right-4 z-[60] space-y-2">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm shadow-lg border ${
-              toast.success
-                ? 'bg-green-500/10 border-green-500/20 text-green-400'
-                : 'bg-red-500/10 border-red-500/20 text-red-400'
-            }`}
-          >
-            {toast.success ? (
-              <CheckCircle className="w-4 h-4 shrink-0" />
-            ) : (
-              <XCircle className="w-4 h-4 shrink-0" />
-            )}
-            <span className="font-medium">{toast.name}</span>
-            <span className="text-secondary">{toast.message}</span>
-          </div>
-        ))}
-      </div>
+      {/* Global toasts rendered by ToastProvider */}
     </>
   )
 }

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import client from '../api/client'
+import { useToast } from '../contexts/ToastContext'
 
 export function useRecommendations(filters) {
   const params = new URLSearchParams()
@@ -16,6 +17,7 @@ export function useRecommendations(filters) {
   if (filters.ratingMin) params.set('rating_min', filters.ratingMin)
   if (filters.hideInPlex) params.set('hide_in_plex', 'true')
   if (filters.hideMonitored) params.set('hide_monitored', 'true')
+  if (filters.userId) params.set('user_id', filters.userId)
 
   return useQuery({
     queryKey: ['recommendations', filters],
@@ -36,6 +38,16 @@ export function useDashboardStats() {
   })
 }
 
+export function useUsers() {
+  return useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const { data } = await client.get('/activity/users')
+      return data?.users || []
+    },
+  })
+}
+
 export function useQueueSonarr() {
   return useQuery({
     queryKey: ['queue', 'sonarr'],
@@ -43,6 +55,7 @@ export function useQueueSonarr() {
       const { data } = await client.get('/queue/sonarr')
       return data
     },
+    refetchInterval: 5000,
   })
 }
 
@@ -53,6 +66,7 @@ export function useQueueRadarr() {
       const { data } = await client.get('/queue/radarr')
       return data
     },
+    refetchInterval: 5000,
   })
 }
 
@@ -68,14 +82,26 @@ export function useWishlist() {
 
 export function useBatchActions() {
   const queryClient = useQueryClient()
+  const { addToast } = useToast()
 
   const sendToRadarr = useMutation({
     mutationFn: async (ids) => {
       const { data } = await client.post('/batch/radarr', { ids })
       return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['queue', 'radarr'] })
+      const added = data?.added?.length || 0
+      const failed = data?.failed?.length || 0
+      if (added > 0) {
+        addToast({ type: 'success', title: 'Radarr', message: `${added} movie(s) added` })
+      }
+      if (failed > 0) {
+        addToast({ type: 'error', title: 'Radarr', message: `${failed} movie(s) failed` })
+      }
+    },
+    onError: (err) => {
+      addToast({ type: 'error', title: 'Radarr', message: err?.response?.data?.detail || 'Failed to add movies' })
     },
   })
 
@@ -84,8 +110,19 @@ export function useBatchActions() {
       const { data } = await client.post('/batch/sonarr', { ids })
       return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['queue', 'sonarr'] })
+      const added = data?.added?.length || 0
+      const failed = data?.failed?.length || 0
+      if (added > 0) {
+        addToast({ type: 'success', title: 'Sonarr', message: `${added} series added` })
+      }
+      if (failed > 0) {
+        addToast({ type: 'error', title: 'Sonarr', message: `${failed} series failed` })
+      }
+    },
+    onError: (err) => {
+      addToast({ type: 'error', title: 'Sonarr', message: err?.response?.data?.detail || 'Failed to add series' })
     },
   })
 
@@ -94,8 +131,13 @@ export function useBatchActions() {
       const { data } = await client.post('/batch/wishlist', { items })
       return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      const count = data?.added || data?.count || 0
+      addToast({ type: 'success', title: 'Wishlist', message: `${count} item(s) added` })
+    },
+    onError: (err) => {
+      addToast({ type: 'error', title: 'Wishlist', message: err?.response?.data?.detail || 'Failed to add items' })
     },
   })
 

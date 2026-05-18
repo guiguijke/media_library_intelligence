@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { SelectionProvider } from './contexts/SelectionContext'
+import { ToastProvider } from './contexts/ToastContext'
 import Navbar from './components/Navbar'
 import TaskMonitor from './components/TaskMonitor'
 import Dashboard from './pages/Dashboard'
@@ -11,24 +12,26 @@ import Activity from './pages/Activity'
 
 function App() {
   return (
-    <SelectionProvider>
-      <BrowserRouter>
-        <div className="min-h-screen bg-background text-primary">
-          <Navbar />
-          <main className="pt-16">
-            <TaskMonitor />
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/discover" element={<Discover />} />
-              <Route path="/activity" element={<Activity />} />
-              <Route path="/queue" element={<Queue />} />
-              <Route path="/wishlist" element={<Wishlist />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
-          </main>
-        </div>
-      </BrowserRouter>
-    </SelectionProvider>
+    <ToastProvider>
+      <SelectionProvider>
+        <BrowserRouter>
+          <div className="min-h-screen bg-background text-primary">
+            <Navbar />
+            <main className="pt-16">
+              <TaskMonitor />
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/discover" element={<Discover />} />
+                <Route path="/activity" element={<Activity />} />
+                <Route path="/queue" element={<Queue />} />
+                <Route path="/wishlist" element={<Wishlist />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </main>
+          </div>
+        </BrowserRouter>
+      </SelectionProvider>
+    </ToastProvider>
   )
 }
 

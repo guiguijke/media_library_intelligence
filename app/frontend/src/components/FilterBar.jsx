@@ -1,4 +1,5 @@
-import { SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal, Users } from 'lucide-react'
+import { useUsers } from '../hooks/useMedia'
 
 const categories = [
   { key: 'all', label: 'All' },
@@ -32,6 +33,7 @@ export default function FilterBar({ filters, onChange }) {
   const update = (key, value) => {
     onChange({ ...filters, [key]: value })
   }
+  const { data: users } = useUsers()
 
   return (
     <div className="space-y-4">
@@ -60,6 +62,21 @@ export default function FilterBar({ filters, onChange }) {
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-secondary" />
           <span className="text-sm text-secondary font-medium">Filters</span>
+        </div>
+
+        {/* User */}
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-secondary" />
+          <select
+            value={filters.userId || ''}
+            onChange={(e) => update('userId', e.target.value || undefined)}
+            className="bg-surface-elevated text-primary text-sm rounded-md px-3 py-1.5 border border-border focus:outline-none focus:ring-1 focus:ring-accent"
+          >
+            <option value="">All users</option>
+            {(users || []).map((u) => (
+              <option key={u.user_id} value={u.user_id}>{u.username}</option>
+            ))}
+          </select>
         </div>
 
         {/* Genre */}

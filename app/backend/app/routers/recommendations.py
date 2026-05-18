@@ -36,12 +36,16 @@ def _root_title(title: str) -> str:
     return t.strip()
 
 
-async def _get_user_top_genres(db: AsyncSession) -> Dict[int, float]:
-    """Computes the most-watched genres weighted by completion percentage."""
-    result = await db.execute(
+async def _get_user_top_genres(db: AsyncSession, user_id: str = None) -> Dict[int, float]:
+    """Computes the most-watched genres weighted by completion percentage.
+    If user_id is provided, filters to that user's history only."""
+    query = (
         select(PlexLibrary.genre_ids, TautulliStats.percent_complete, TautulliStats.watch_count)
         .join(TautulliStats, PlexLibrary.rating_key == TautulliStats.media_id, isouter=True)
     )
+    if user_id:
+        query = query.where(TautulliStats.user_id == user_id)
+    result = await db.execute(query)
     genre_scores = {}
     for row in result.all():
         genres, pct, count = row
@@ -120,6 +124,7 @@ async def get_recommendations_get(
     rating_min: float = None,
     hide_in_plex: bool = False,
     hide_monitored: bool = False,
+    user_id: str = None,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
 ) -> RecommendationResponse:
@@ -130,6 +135,8 @@ async def get_recommendations_get(
         genres=genres,
         min_year=year_min,
         max_year=year_max,
+        hide_monitored=hide_monitored,
+        user_id=user_id,
         limit=limit,
     )
     return await _get_recommendations_logic(filters, db)
@@ -139,7 +146,7 @@ async def _get_recommendations_logic(
     filters: RecommendationFilter,
     db: AsyncSession,
 ) -> RecommendationResponse:
-    user_genres = await _get_user_top_genres(db)
+    user_genres = await _get_user_top_genres(db, user_id=filters.user_id)
     collections = await _get_plex_collections(db)
 
     plex_result = await db.execute(select(PlexLibrary.title, PlexLibrary.tmdb_id, PlexLibrary.tvdb_id, PlexLibrary.anilist_id))

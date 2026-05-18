@@ -4,9 +4,15 @@ from app.database import AsyncSessionLocal
 from app.models import TaskStatus
 
 
-async def create_task_status(task_id: str, task_name: str):
+async def create_task_status(task_id: str, task_name: str, status: str = "running", progress: int = 0, message: str = "Starting..."):
     async with AsyncSessionLocal() as db:
-        ts = TaskStatus(task_id=task_id, task_name=task_name, status="pending")
+        ts = TaskStatus(
+            task_id=task_id,
+            task_name=task_name,
+            status=status,
+            progress=progress,
+            message=message,
+        )
         db.add(ts)
         await db.commit()
 

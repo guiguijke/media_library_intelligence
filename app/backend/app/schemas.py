@@ -61,30 +61,20 @@ class ExternalClassicOut(ExternalClassicBase):
     id: int
 
 
-# Sonarr Queue
-class SonarrQueueBase(BaseModel):
-    external_id: str
+# Queue (Sonarr / Radarr live)
+class QueueItemOut(BaseModel):
+    id: str
     title: str
+    year: Optional[int] = None
+    poster_url: Optional[str] = None
     status: str
+    progress: float = 0.0
+    size: Optional[int] = None
+    sizeleft: Optional[int] = None
+    timeleft: Optional[str] = None
+    quality: Optional[str] = None
+    protocol: Optional[str] = None
     added_at: Optional[datetime] = None
-
-
-class SonarrQueueOut(SonarrQueueBase):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-
-
-# Radarr Queue
-class RadarrQueueBase(BaseModel):
-    external_id: str
-    title: str
-    status: str
-    added_at: Optional[datetime] = None
-
-
-class RadarrQueueOut(RadarrQueueBase):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
 
 
 # Wishlist
