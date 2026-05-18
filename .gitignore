@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / Frontend
+node_modules/
+app/frontend/dist/
+*.local
+
+# Local dev / MCP artifacts
+.playwright-mcp/
+*.prompt.md
+

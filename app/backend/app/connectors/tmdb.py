@@ -1,0 +1,209 @@
+import json
+import logging
+from typing import Any, Dict, List, Optional
+
+import httpx
+import redis.asyncio as redis
+from app.config import settings
+from app.services.settings import get_setting
+
+logger = logging.getLogger(__name__)
+
+
+class TMDBConnector:
+    def __init__(self):
+        self.api_key = ""
+        self.base_url = ""
+        self.image_base_url = ""
+        self.timeout = 30.0
+        self._redis: Optional[redis.Redis] = None
+
+    async def _init(self):
+        self.api_key = await get_setting("TMDB_API_KEY")
+        self.base_url = (await get_setting("TMDB_BASE_URL")).rstrip("/")
+        self.image_base_url = (await get_setting("TMDB_IMAGE_BASE_URL")).rstrip("/")
+
+    async def _get_redis(self) -> Optional[redis.Redis]:
+        if self._redis is None:
+            try:
+                self._redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            except Exception as exc:
+                logger.warning(f"Redis unavailable: {exc}")
+        return self._redis
+
+    async def _cache_get(self, key: str) -> Optional[str]:
+        r = await self._get_redis()
+        if not r:
+            return None
+        try:
+            return await r.get(key)
+        except Exception:
+            return None
+
+    async def _cache_set(self, key: str, value: str, ttl: int = 3600) -> None:
+        r = await self._get_redis()
+        if not r:
+            return
+        try:
+            await r.setex(key, ttl, value)
+        except Exception:
+            pass
+
+    async def _request(self, endpoint: str, params: Optional[dict] = None) -> Optional[dict]:
+        await self._init()
+        url = f"{self.base_url}{endpoint}"
+        query = params.copy() if params else {}
+        query["api_key"] = self.api_key
+        cache_key = f"tmdb:{endpoint}:{json.dumps(query, sort_keys=True)}"
+
+        cached = await self._cache_get(cache_key)
+        if cached:
+            try:
+                return json.loads(cached)
+            except Exception:
+                pass
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(url, params=query)
+                response.raise_for_status()
+                data = response.json()
+                await self._cache_set(cache_key, json.dumps(data))
+                return data
+        except Exception as exc:
+            logger.error(f"TMDB API error ({url}): {exc}")
+            return None
+
+    def _build_poster(self, path: Optional[str]) -> Optional[str]:
+        if path:
+            return f"{self.image_base_url}{path}"
+        return None
+
+    async def get_top_rated_movies(self, page: int = 1) -> List[Dict[str, Any]]:
+        data = await self._request("/movie/top_rated", {"page": page})
+        if not data or "results" not in data:
+            return []
+        results = []
+        for item in data["results"]:
+            results.append({
+                "tmdb_id": item.get("id"),
+                "title": item.get("title"),
+                "original_title": item.get("original_title"),
+                "year": int(item["release_date"][:4]) if item.get("release_date") else None,
+                "genre_ids": item.get("genre_ids", []),
+                "original_language": item.get("original_language"),
+                "vote_average": item.get("vote_average"),
+                "vote_count": item.get("vote_count"),
+                "popularity": item.get("popularity"),
+                "poster_url": self._build_poster(item.get("poster_path")),
+            })
+        return results
+
+    async def get_top_rated_series(self, page: int = 1) -> List[Dict[str, Any]]:
+        data = await self._request("/tv/top_rated", {"page": page})
+        if not data or "results" not in data:
+            return []
+        results = []
+        for item in data["results"]:
+            results.append({
+                "tmdb_id": item.get("id"),
+                "title": item.get("name"),
+                "original_title": item.get("original_name"),
+                "year": int(item["first_air_date"][:4]) if item.get("first_air_date") else None,
+                "genre_ids": item.get("genre_ids", []),
+                "vote_average": item.get("vote_average"),
+                "vote_count": item.get("vote_count"),
+                "popularity": item.get("popularity"),
+                "poster_url": self._build_poster(item.get("poster_path")),
+            })
+        return results
+
+    async def discover_animation(self, filters: Optional[dict] = None) -> List[Dict[str, Any]]:
+        params = {
+            "with_genres": "16",
+            "sort_by": "vote_average.desc",
+            "vote_count.gte": 50,
+        }
+        if filters:
+            params.update(filters)
+        data = await self._request("/discover/movie", params)
+        if not data or "results" not in data:
+            return []
+        results = []
+        for item in data["results"]:
+            results.append({
+                "tmdb_id": item.get("id"),
+                "title": item.get("title"),
+                "original_title": item.get("original_title"),
+                "year": int(item["release_date"][:4]) if item.get("release_date") else None,
+                "genre_ids": item.get("genre_ids", []),
+                "original_language": item.get("original_language"),
+                "vote_average": item.get("vote_average"),
+                "vote_count": item.get("vote_count"),
+                "popularity": item.get("popularity"),
+                "poster_url": self._build_poster(item.get("poster_path")),
+            })
+        return results
+
+    async def search_by_title_year(self, title: str, year: Optional[int] = None) -> List[Dict[str, Any]]:
+        params = {"query": title}
+        if year:
+            params["year"] = year
+        data = await self._request("/search/multi", params)
+        if not data or "results" not in data:
+            return []
+        results = []
+        for item in data["results"]:
+            if item.get("media_type") not in ("movie", "tv"):
+                continue
+            results.append({
+                "tmdb_id": item.get("id"),
+                "title": item.get("title") or item.get("name"),
+                "original_title": item.get("original_title") or item.get("original_name"),
+                "year": year,
+                "media_type": item.get("media_type"),
+                "poster_url": self._build_poster(item.get("poster_path")),
+            })
+        return results
+
+    async def get_movie_details(self, tmdb_id: int) -> Optional[Dict[str, Any]]:
+        data = await self._request(f"/movie/{tmdb_id}")
+        if not data:
+            return None
+        return {
+            "tmdb_id": data.get("id"),
+            "title": data.get("title"),
+            "original_title": data.get("original_title"),
+            "year": int(data["release_date"][:4]) if data.get("release_date") else None,
+            "genre_ids": [g["id"] for g in data.get("genres", [])],
+            "vote_average": data.get("vote_average"),
+            "vote_count": data.get("vote_count"),
+            "popularity": data.get("popularity"),
+            "poster_url": self._build_poster(data.get("poster_path")),
+            "overview": data.get("overview"),
+            "belongs_to_collection": data.get("belongs_to_collection"),
+        }
+
+    async def get_tv_details(self, tmdb_id: int) -> Optional[Dict[str, Any]]:
+        data = await self._request(f"/tv/{tmdb_id}")
+        if not data:
+            return None
+        return {
+            "tmdb_id": data.get("id"),
+            "title": data.get("name"),
+            "original_title": data.get("original_name"),
+            "year": int(data["first_air_date"][:4]) if data.get("first_air_date") else None,
+            "genre_ids": [g["id"] for g in data.get("genres", [])],
+            "vote_average": data.get("vote_average"),
+            "vote_count": data.get("vote_count"),
+            "popularity": data.get("popularity"),
+            "poster_url": self._build_poster(data.get("poster_path")),
+            "overview": data.get("overview"),
+        }
+
+    async def test_connection(self) -> bool:
+        try:
+            data = await self._request("/configuration")
+            return bool(data and "images" in data)
+        except Exception:
+            return False

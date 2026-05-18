@@ -1,0 +1,73 @@
+services:
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://mli:mli@db:5432/mli
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - app_data:/app/data
+
+  worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://mli:mli@db:5432/mli
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - app_data:/app/data
+
+  scheduler:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://mli:mli@db:5432/mli
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - app_data:/app/data
+
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=mli
+      - POSTGRES_PASSWORD=mli
+      - POSTGRES_DB=mli
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mli -d mli"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_data:
