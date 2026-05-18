@@ -125,6 +125,7 @@ class RecommendationFilter(BaseModel):
     max_year: Optional[int] = None
     genres: Optional[List[int]] = None
     hide_monitored: bool = False
+    user_id: Optional[str] = None
     limit: int = 50
 
 
