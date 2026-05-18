@@ -1,4 +1,4 @@
-import { Film, Tv, Clapperboard, Baby, HardDrive, TrendingUp, RotateCcw, Clock } from 'lucide-react'
+import { Film, Tv, Clapperboard, Baby, TrendingUp, RotateCcw, Clock } from 'lucide-react'
 import { useDashboardStats, useRecommendations, useBatchActions } from '../hooks/useMedia'
 import MediaCard from '../components/MediaCard'
 import MediaModal from '../components/MediaModal'
@@ -20,7 +20,6 @@ export default function Dashboard() {
     { label: 'TV Shows', value: stats?.series || 0, icon: Tv, color: 'text-accent' },
     { label: 'Anime', value: stats?.anime || 0, icon: Clapperboard, color: 'text-accent' },
     { label: 'Cartoons', value: stats?.cartoons || 0, icon: Baby, color: 'text-accent' },
-    { label: 'Disk Space', value: stats?.disk_usage ? `${(stats.disk_usage / 1e12).toFixed(1)} TB` : '0 TB', icon: HardDrive, color: 'text-accent' },
   ]
 
   const trends = stats?.trends || []

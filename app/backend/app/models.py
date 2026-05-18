@@ -30,6 +30,8 @@ class PlexLibrary(Base):
     tvdb_id = Column(Integer, nullable=True, index=True)
     anilist_id = Column(Integer, nullable=True, index=True)
     imdb_id = Column(String, nullable=True, index=True)
+    collection_id = Column(Integer, nullable=True, index=True)
+    collection_name = Column(String, nullable=True)
     poster_url = Column(String, nullable=True)
     rating_key = Column(String, nullable=True, index=True)
     added_date = Column(DateTime(timezone=True), default=func.now())

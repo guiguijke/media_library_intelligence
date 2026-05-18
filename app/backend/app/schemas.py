@@ -134,6 +134,7 @@ class RecommendationFilter(BaseModel):
     min_year: Optional[int] = None
     max_year: Optional[int] = None
     genres: Optional[List[int]] = None
+    hide_monitored: bool = False
     limit: int = 50
 
 
@@ -170,7 +171,6 @@ class DashboardStats(BaseModel):
     series: int
     anime: int
     cartoons: int
-    disk_usage: float = 0.0
     incomplete_collections: List[IncompleteCollection] = []
     trends: List[TrendItem] = []
 

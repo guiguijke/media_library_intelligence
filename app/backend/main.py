@@ -61,7 +61,9 @@ async def startup():
             ADD COLUMN IF NOT EXISTS collections JSON,
             ADD COLUMN IF NOT EXISTS rating_key VARCHAR,
             ADD COLUMN IF NOT EXISTS tvdb_id INTEGER,
-            ADD COLUMN IF NOT EXISTS imdb_id VARCHAR
+            ADD COLUMN IF NOT EXISTS imdb_id VARCHAR,
+            ADD COLUMN IF NOT EXISTS collection_id INTEGER,
+            ADD COLUMN IF NOT EXISTS collection_name VARCHAR
         """))
         await conn.execute(text("""
             ALTER TABLE external_classics

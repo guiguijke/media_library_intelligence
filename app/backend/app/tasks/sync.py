@@ -39,8 +39,29 @@ def sync_plex_library(self):
         connector = PlexConnector()
         items = await connector.get_library()
         count = len(items)
-        self.update_state(state="PROGRESS", meta={"progress": 50, "message": f"Saving {count} items..."})
-        await update_task_status(self.request.id, status="running", progress=50, message=f"Saving {count} items...")
+        self.update_state(state="PROGRESS", meta={"progress": 40, "message": f"Enriching {count} items with TMDB collections..."})
+        await update_task_status(self.request.id, status="running", progress=40, message=f"Enriching {count} items with TMDB collections...")
+
+        # Enrich movies with TMDB collection info
+        tmdb = TMDBConnector()
+        sem = asyncio.Semaphore(10)
+
+        async def _enrich(item):
+            if item.get("category") != "movie" or not item.get("tmdb_id"):
+                return item
+            async with sem:
+                details = await tmdb.get_movie_details(item["tmdb_id"])
+            if details:
+                collection = details.get("belongs_to_collection")
+                if collection:
+                    item["collection_id"] = collection.get("id")
+                    item["collection_name"] = collection.get("name")
+            return item
+
+        enriched_items = await asyncio.gather(*[_enrich(item.copy()) for item in items])
+
+        self.update_state(state="PROGRESS", meta={"progress": 70, "message": f"Saving {count} items..."})
+        await update_task_status(self.request.id, status="running", progress=70, message=f"Saving {count} items...")
 
         async with AsyncSessionLocal() as db:
             mappings = (await db.execute(select(PlexLibraryMapping))).scalars().all()
@@ -48,7 +69,7 @@ def sync_plex_library(self):
 
             # Truncate and refill approach for simplicity
             await db.execute(delete(PlexLibrary))
-            for item in items:
+            for item in enriched_items:
                 section_key = item.get("section_key")
                 section_type = item.get("section_type")
                 mapped = mapping_dict.get(section_key)
@@ -72,6 +93,8 @@ def sync_plex_library(self):
                     tvdb_id=item.get("tvdb_id"),
                     anilist_id=None,
                     imdb_id=item.get("imdb_id"),
+                    collection_id=item.get("collection_id"),
+                    collection_name=item.get("collection_name"),
                     poster_url=None,
                     rating_key=item.get("rating_key"),
                     added_date=datetime.utcnow(),
@@ -284,6 +307,28 @@ def refresh_external_classics(self, previous_result=None):
                 deduped_items.append(item)
         deduped_items.extend(seen_tmdb.values())
         all_items = deduped_items
+
+        # Second pass: deduplicate by normalized title (AniList vs TMDB without tmdb_id)
+        def _norm(title):
+            if not title:
+                return ""
+            return "".join(c for c in title.lower() if c.isalnum())
+
+        seen_title = {}
+        final_items = []
+        for item in all_items:
+            key = _norm(item.get("title"))
+            if not key:
+                final_items.append(item)
+                continue
+            if key in seen_title:
+                existing = seen_title[key]
+                if (item.get("score_external") or 0) > (existing.get("score_external") or 0):
+                    seen_title[key] = item
+            else:
+                seen_title[key] = item
+        final_items.extend(seen_title.values())
+        all_items = final_items
 
         async with AsyncSessionLocal() as db:
             # Upsert logic: delete old entries from these sources and insert new ones

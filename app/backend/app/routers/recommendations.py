@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import PlexLibrary, TautulliStats, ExternalClassics, CategoryEnum
+from app.models import PlexLibrary, TautulliStats, ExternalClassics, CategoryEnum, RadarrQueue, SonarrQueue
 from app.schemas import RecommendationItem, RecommendationFilter, RecommendationResponse
 
 logger = logging.getLogger(__name__)
@@ -159,6 +159,12 @@ async def _get_recommendations_logic(
         if anilist_id:
             plex_anilist_ids.add(anilist_id)
 
+    monitored_ids = set()
+    if filters.hide_monitored:
+        radarr_result = await db.execute(select(RadarrQueue.external_id))
+        sonarr_result = await db.execute(select(SonarrQueue.external_id))
+        monitored_ids = {r[0] for r in radarr_result.all()} | {s[0] for s in sonarr_result.all()}
+
     query = select(ExternalClassics)
     if filters.categories:
         query = query.where(ExternalClassics.category.in_(filters.categories))
@@ -181,6 +187,10 @@ async def _get_recommendations_logic(
         if item.title and _normalize_title(item.title) in plex_titles:
             continue
         if item.title and _root_title(item.title) in plex_root_titles:
+            continue
+        if filters.hide_monitored and item.tmdb_id and str(item.tmdb_id) in monitored_ids:
+            continue
+        if filters.hide_monitored and item.anilist_id and str(item.anilist_id) in monitored_ids:
             continue
 
         item_genres = set(getattr(item, 'genre_ids', None) or [])

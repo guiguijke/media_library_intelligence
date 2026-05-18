@@ -54,21 +54,43 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
                 )
             )
 
-    # Incomplete collections heuristic: group by common prefix
+    # Incomplete collections: use TMDB collection_id when available, fallback to prefix heuristic
     incomplete_collections: List[IncompleteCollection] = []
     lib_result = await db.execute(select(PlexLibrary))
     items = lib_result.scalars().all()
 
-    # Step 1: build raw groups by first 3 words
-    raw_groups = {}
+    # Group by TMDB collection
+    collection_groups = {}
+    heuristic_items = []
     for item in items:
+        if item.collection_id:
+            collection_groups.setdefault(item.collection_id, {"name": item.collection_name or "Unknown Collection", "items": []})
+            collection_groups[item.collection_id]["items"].append(item)
+        else:
+            heuristic_items.append(item)
+
+    idx = 1
+    for cid, data in sorted(collection_groups.items(), key=lambda x: len(x[1]["items"]), reverse=True):
+        if len(data["items"]) >= 2:
+            incomplete_collections.append(
+                IncompleteCollection(
+                    id=idx,
+                    name=data["name"],
+                    owned=len(data["items"]),
+                    total=len(data["items"]) + 1,
+                )
+            )
+            idx += 1
+
+    # Fallback heuristic for items without TMDB collection
+    raw_groups = {}
+    for item in heuristic_items:
         words = item.title.strip().split()[:3]
         key = " ".join(words).lower()
         if not key:
             continue
         raw_groups.setdefault(key, []).append(item.title)
 
-    # Step 2: compute longest common prefix and filter out weak groups
     CONNECTING = {"et", "des", "de", "du", "la", "le", "les", "au", "aux", "en", "un", "une", "a", "the", "of", "in", "on", "at", "to", "for", "with", "and", "or", "but", "from", "by"}
 
     def _common_prefix(titles):
@@ -83,7 +105,6 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
                 prefix.append(word_lists[0][i])
             else:
                 break
-        # Strip trailing connecting words and punctuation
         while prefix and (prefix[-1].lower().rstrip(":;-–—") in CONNECTING or prefix[-1].lower().rstrip(":;-–—") == ""):
             prefix.pop()
         return " ".join(prefix).rstrip(":;-–— ")
@@ -97,7 +118,6 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
             continue
         groups[prefix] = titles
 
-    idx = 1
     for prefix, titles in sorted(groups.items(), key=lambda x: len(x[1]), reverse=True):
         incomplete_collections.append(
             IncompleteCollection(
@@ -109,15 +129,11 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
         )
         idx += 1
 
-    # Disk usage: not computed yet
-    disk_usage = 0.0  # TODO: compute actual disk usage
-
     return DashboardStats(
         movies=total_movies or 0,
         series=total_series or 0,
         anime=total_anime or 0,
         cartoons=total_cartoons or 0,
-        disk_usage=disk_usage,
         incomplete_collections=incomplete_collections,
         trends=trends,
     )
