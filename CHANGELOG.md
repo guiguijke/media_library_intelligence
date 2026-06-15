@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-06-15
+
+### Added
+
+- **Discover genre filtering** now relies on persisted `genre_ids` in `ExternalClassics`.
+- **Queue pagination** for Radarr/Sonarr connectors handles paginated `/api/v3/queue` responses.
+- **Queue metadata** enrichment: Radarr `includeMovie=true`, Sonarr `includeSeries=true&includeEpisode=true`.
+- **Queue pruning**: imported Radarr movies (`hasFile=true`) are automatically removed from the local queue tracking.
+
+### Changed
+
+- All `*.png` files are now ignored by Git; screenshot removed from README.
+
+### Fixed
+
+- Discover genre filter returned no results because `genre_ids` was missing from `ExternalClassics`.
+- Radarr/Sonarr queue could miss items beyond the default API page size.
+- Sonarr queue items showed "Unknown" titles and no posters due to missing `series`/`episode` includes.
+- Imported Radarr movies added via MLI remained visible in the Queue page as "added".
+
 ## [1.0.0] - 2026-06-15
 
 ### Added
