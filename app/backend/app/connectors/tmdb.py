@@ -1,13 +1,19 @@
+import asyncio
 import json
 import logging
 from typing import Any, Dict, List, Optional
 
 import httpx
 import redis.asyncio as redis
+from aiolimiter import AsyncLimiter
 from app.config import settings
 from app.services.settings import get_setting
 
 logger = logging.getLogger(__name__)
+
+# TMDB has a soft limit of ~40 requests/second and 20 concurrent connections per IP.
+# Stay safely under it to avoid 429s during large syncs.
+_TMDB_RATE_LIMIT = 35
 
 
 class TMDBConnector:
@@ -17,6 +23,7 @@ class TMDBConnector:
         self.image_base_url = ""
         self.timeout = 30.0
         self._redis: Optional[redis.Redis] = None
+        self._rate_limiter = AsyncLimiter(_TMDB_RATE_LIMIT, 1)
 
     async def _init(self):
         self.api_key = await get_setting("TMDB_API_KEY")
@@ -72,16 +79,35 @@ class TMDBConnector:
             except Exception:
                 pass
 
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url, params=query, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-                await self._cache_set(cache_key, json.dumps(data))
-                return data
-        except Exception as exc:
-            logger.error(f"TMDB API error ({url}): {exc}")
-            return None
+        last_error = None
+        for attempt in range(3):
+            try:
+                async with self._rate_limiter:
+                    async with httpx.AsyncClient(timeout=self.timeout) as client:
+                        response = await client.get(url, params=query, headers=headers)
+                        response.raise_for_status()
+                        data = response.json()
+                        await self._cache_set(cache_key, json.dumps(data))
+                        return data
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 429:
+                    retry_after = int(exc.response.headers.get("Retry-After", 1))
+                    wait = retry_after * (2 ** attempt)
+                    logger.warning(
+                        f"TMDB rate limit hit ({url}), waiting {wait}s before retry {attempt + 1}/3"
+                    )
+                    await asyncio.sleep(wait)
+                    last_error = exc
+                    continue
+                logger.error(f"TMDB API HTTP error ({url}): {exc.response.status_code}")
+                return None
+            except Exception as exc:
+                logger.error(f"TMDB API error ({url}): {exc}")
+                return None
+
+        if last_error:
+            logger.error(f"TMDB API rate limit exceeded after retries ({url}): {last_error}")
+        return None
 
     def _build_poster(self, path: Optional[str]) -> Optional[str]:
         if path:

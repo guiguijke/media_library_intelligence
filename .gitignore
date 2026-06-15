@@ -226,3 +226,7 @@ app/frontend/dist/
 .playwright-mcp/
 *.prompt.md
 
+# Local screenshots / captures
+/screenshots/
+/*.png
+

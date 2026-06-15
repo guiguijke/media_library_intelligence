@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTasks } from '../hooks/useTasks'
+import { useCancelTask } from '../hooks/useCancelTask'
 import { useToast } from '../contexts/ToastContext'
 import { CheckCircle, XCircle, Loader2, Zap, X, Minus, Maximize2 } from 'lucide-react'
 
 export default function TaskMonitor() {
   const { data: tasks } = useTasks()
+  const cancelMutation = useCancelTask()
   const { addToast } = useToast()
   const prevTasksRef = useRef([])
   const [recentDone, setRecentDone] = useState([])
   const [minimized, setMinimized] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [cancellingId, setCancellingId] = useState(null)
 
   const activeTasks = (tasks || []).filter((t) => t.status === 'running')
   const hasActive = activeTasks.length > 0 || recentDone.length > 0
@@ -55,6 +58,13 @@ export default function TaskMonitor() {
     }
   }, [activeTasks.length])
 
+  const handleCancel = (taskId) => {
+    setCancellingId(taskId)
+    cancelMutation.mutate(taskId, {
+      onSettled: () => setCancellingId(null),
+    })
+  }
+
   const displayTasks = [
     ...activeTasks,
     ...recentDone.filter((d) => !activeTasks.find((a) => a.task_id === d.task_id)),
@@ -95,17 +105,34 @@ export default function TaskMonitor() {
 
             <div className="space-y-5">
               {displayTasks.map((task) => {
-                const isDone = task.status === 'success' || task.status === 'failure'
+                const isDone =
+                  task.status === 'success' || task.status === 'failure' || task.status === 'cancelled'
+                const isCancelling = cancellingId === task.task_id
                 return (
                   <div key={task.task_id} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium text-primary">{task.task_name}</span>
-                      <span className="text-accent font-bold">{task.progress ?? 0}%</span>
+                      <div className="flex items-center gap-2">
+                        {!isDone && (
+                          <button
+                            onClick={() => handleCancel(task.task_id)}
+                            disabled={isCancelling}
+                            className="text-xs px-2 py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+                          >
+                            {isCancelling ? 'Cancelling...' : 'Cancel'}
+                          </button>
+                        )}
+                        <span className="text-accent font-bold">{task.progress ?? 0}%</span>
+                      </div>
                     </div>
                     <div className="h-3 bg-surface-elevated rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ease-out ${
-                          isDone ? 'bg-green-500' : 'bg-accent'
+                          task.status === 'cancelled'
+                            ? 'bg-red-500'
+                            : isDone
+                            ? 'bg-green-500'
+                            : 'bg-accent'
                         }`}
                         style={{ width: `${Math.min(100, Math.max(0, task.progress ?? 0))}%` }}
                       />
@@ -116,10 +143,7 @@ export default function TaskMonitor() {
               })}
             </div>
 
-            <div className="mt-6 flex items-center justify-center gap-2 text-sm text-secondary">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Do not close this page</span>
-            </div>
+
           </div>
         </div>
       )}

@@ -51,6 +51,19 @@ def sync_plex_library(self):
         self.update_state(state="PROGRESS", meta={"progress": 6, "message": f"{count} items after filtering ignored sections"})
         await update_task_status(self.request.id, status="running", progress=6, message=f"{count} items after filtering ignored sections")
 
+        # Load existing movie enrichment cache to avoid re-calling TMDB for unchanged items
+        async with AsyncSessionLocal() as db:
+            existing_movies = (
+                await db.execute(select(PlexLibrary).where(PlexLibrary.tmdb_id.isnot(None)))
+            ).scalars().all()
+            existing_movie_cache = {
+                m.tmdb_id: {
+                    "collection_id": m.collection_id,
+                    "collection_name": m.collection_name,
+                }
+                for m in existing_movies
+            }
+
         # Enrich movies with TMDB collection info
         tmdb = TMDBConnector()
         sem = asyncio.Semaphore(10)
@@ -60,7 +73,14 @@ def sync_plex_library(self):
 
         async def _enrich(item):
             async with sem:
-                details = await tmdb.get_movie_details(item["tmdb_id"])
+                tmdb_id = item.get("tmdb_id")
+                cached = existing_movie_cache.get(tmdb_id)
+                if cached and cached.get("collection_id"):
+                    item["collection_id"] = cached["collection_id"]
+                    item["collection_name"] = cached["collection_name"]
+                    return item
+
+                details = await tmdb.get_movie_details(tmdb_id)
             if details:
                 collection = details.get("belongs_to_collection")
                 if collection:

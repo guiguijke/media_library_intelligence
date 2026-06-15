@@ -1,15 +1,15 @@
 # 🎬 Media Library Intelligence
 
 <p align="center">
-  <strong>Découvrez, organisez et enrichissez votre bibliothèque Plex intelligemment.</strong>
+  <strong>Discover, organize, and expand your Plex library intelligently.</strong>
 </p>
 
 <p align="center">
-  <a href="#-fonctionnalités">Fonctionnalités</a> •
-  <a href="#-démarrage-rapide">Démarrage rapide</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-quick-start">Quick Start</a> •
   <a href="#-configuration">Configuration</a> •
   <a href="#-architecture">Architecture</a> •
-  <a href="#-développement">Développement</a>
+  <a href="#-development">Development</a>
 </p>
 
 <p align="center">
@@ -25,79 +25,79 @@
 ---
 
 <p align="center">
-  <img src="docs/screenshot-discover.png" alt="Capture d'écran de la page Discover" width="85%">
+  <img src="docs/screenshot-discover.png" alt="Discover page screenshot" width="85%">
   <br>
-  <em>Page Discover — recommandations personnalisées et filtres intelligents</em>
+  <em>Discover page — personalized recommendations and smart filters</em>
 </p>
 
-## ✨ Fonctionnalités
+## ✨ Features
 
 | | |
 |:---|:---|
-| 🧠 **Recommandations intelligentes** | Score 0-100 basé sur trois piliers : sagas incomplètes, goûts des utilisateurs et classiques manquants. |
-| 🔍 **Recherche globale** | Barre de recherche dans la navbar pour trouver instantanément un titre dans toute la base. |
-| 🎨 **Discover immersif** | Grille responsive de posters, fiches détaillées, bandes-annonces et fournisseurs de streaming. |
-| 📚 **Gestion des sagas** | Détection automatique des collections TMDB et suggestions pour compléter une série de films. |
-| ⚡ **Actions rapides** | Ajout direct à **Radarr** (films) ou **Sonarr** (séries), ou mise en liste de souhaits. |
-| 📦 **File de téléchargement** | Suivi en temps réel des demandes Radarr/Sonarr et de leur état d'avancement. |
-| 💖 **Wishlist actionnable** | Liste de souhaits avec envoi direct vers Radarr/Sonarr d'un seul clic. |
-| 🚫 **Exclusions strictes** | Horreur, adulte, hentai/ecchi automatiquement filtrés. |
-| 🔄 **Synchronisation Plex** | Scan complet de la bibliothèque avec extraction des GUIDs externes (TMDb, TVDb, IMDb). |
-| ⚙️ **Configuration 100 % web** | URLs et clés API renseignées directement dans l'interface, stockées chiffrées en base. |
+| 🧠 **Smart Recommendations** | 0-100 score based on three pillars: incomplete sagas, user tastes, and missing classics. |
+| 🔍 **Global Search** | Search bar in the navbar to instantly find a title across the entire catalog. |
+| 🎨 **Immersive Discover** | Responsive poster grid, detail sheets, trailers, and streaming providers. |
+| 📚 **Saga Management** | Automatic TMDB collection detection and suggestions to complete a movie series. |
+| ⚡ **Quick Actions** | One-click add to **Radarr** (movies) or **Sonarr** (series), or save to the wishlist. |
+| 📦 **Download Queue** | Real-time tracking of Radarr/Sonarr requests and their progress. |
+| 💖 **Actionable Wishlist** | Wishlist with direct send to Radarr/Sonarr. |
+| 🚫 **Strict Content Filtering** | Horror, adult, hentai/ecchi automatically filtered out. |
+| 🔄 **Plex Sync** | Full library scan with external GUID extraction (TMDb, TVDb, IMDb). |
+| ⚙️ **100% Web Configuration** | URLs and API keys entered directly in the UI, encrypted at rest in the database. |
 
-## 🚀 Démarrage rapide
+## 🚀 Quick Start
 
-### Prérequis
+### Prerequisites
 
 - [Docker](https://www.docker.com/)
 - [Docker Compose](https://docs.docker.com/compose/)
 
-### 1. Cloner le projet
+### 1. Clone the project
 
 ```bash
-git clone <url-du-repo>
+git clone <repo-url>
 cd media_library_intelligence
 ```
 
-### 2. Lancer la stack
+### 2. Launch the stack
 
 ```bash
 docker compose up --build -d
 ```
 
-> La première build compile le frontend React et installe les dépendances Python.
+> The first build compiles the React frontend and installs Python dependencies.
 
-### 3. Ouvrir l'application
+### 3. Open the app
 
-Rendez-vous sur : **http://localhost:3000**
+Go to: **http://localhost:3000**
 
-Identifiants par défaut :
+Default credentials:
 
-- **Utilisateur** : `admin`
-- **Mot de passe** : `admin`
+- **Username**: `admin`
+- **Password**: `admin`
 
-> Pensez à changer le mot de passe admin dans les Settings dès le premier lancement.
+> Change the admin password in Settings on first login.
 
 ## ⚙️ Configuration
 
-Une fois l'application lancée, cliquez sur **Settings** (icône ⚙️ dans la navbar) et renseignez vos connecteurs :
+Once the app is running, click **Settings** (⚙️ in the navbar) and fill in your connectors:
 
-| Plateforme | Champs requis | Où trouver la clé |
-|------------|---------------|-------------------|
-| **Plex** | URL du serveur, Token X-Plex | Plex Web → Paramètres → Général → Avancé → Afficher le token |
+| Platform | Required fields | Where to find the key |
+|----------|----------------|-----------------------|
+| **Plex** | Server URL, Token | Plex Web → Settings → General → Advanced → Show token |
 | **Tautulli** | URL, API Key | Tautulli → Settings → Web Interface → API |
-| **TMDB** | API Key | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
+| **TMDB** | API Key / Read Access Token | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
 | **Sonarr** | URL, API Key | Sonarr → Settings → General → Security |
 | **Radarr** | URL, API Key | Radarr → Settings → General → Security |
-| **AniList** | Client ID (optionnel) | [anilist.co/settings/developer](https://anilist.co/settings/developer) |
+| **AniList** | Client ID (optional) | [anilist.co/settings/developer](https://anilist.co/settings/developer) |
 
-Après avoir sauvegardé :
+After saving:
 
-1. Allez sur le **Dashboard**.
-2. Cliquez sur **Sync** pour lancer un scan complet de votre bibliothèque Plex.
-3. Retournez sur **Discover** pour explorer vos recommandations.
+1. Go to the **Dashboard**.
+2. Click **Sync** to run a full Plex library scan.
+3. Go to **Discover** to explore your recommendations.
 
-> 🔐 **Sécurité** : les clés API et tokens sont stockés chiffrés dans PostgreSQL et jamais exposés côté client.
+> 🔐 **Security**: API keys and tokens are encrypted in PostgreSQL and never exposed to the client.
 
 ## 🏗️ Architecture
 
@@ -120,87 +120,88 @@ Après avoir sauvegardé :
                                                └───────────┘
 ```
 
-### Services Docker
+### Docker Services
 
-| Service | Rôle | Port exposé |
-|---------|------|-------------|
-| `app` | Backend FastAPI + frontend servé en statique | `3000` |
-| `worker` | Workers Celery pour les tâches longues | — |
-| `scheduler` | Celery Beat pour les tâches planifiées | — |
-| `db` | PostgreSQL 17 | `5432` (interne) |
-| `redis` | Redis 7.4 (broker Celery + cache) | `6379` (interne) |
+| Service | Role | Exposed Port |
+|---------|------|--------------|
+| `app` | FastAPI backend + static frontend | `3000` |
+| `worker` | Celery workers for background tasks | — |
+| `scheduler` | Celery Beat for scheduled tasks | — |
+| `db` | PostgreSQL 17 | `5432` (internal) |
+| `redis` | Redis 7.4 (Celery broker + cache) | `6379` (internal) |
 
-## 📁 Structure du projet
+## 📁 Project Structure
 
 ```
 media_library_intelligence/
-├── docker-compose.yml          # Stack complète Docker
-├── .env.example                # Variables d'environnement minimales
+├── docker-compose.yml          # Full Docker stack
+├── .env.example                # Minimal infrastructure variables
+├── CHANGELOG.md                # Release notes
 ├── app/
-│   ├── Dockerfile              # Build multi-étapes Node + Python
+│   ├── Dockerfile              # Multi-stage Node + Python build
 │   ├── backend/
-│   │   ├── main.py             # Point d'entrée FastAPI
+│   │   ├── main.py             # FastAPI entry point
 │   │   ├── app/
 │   │   │   ├── connectors/     # Plex, Tautulli, TMDB, AniList, Sonarr, Radarr
-│   │   │   ├── routers/        # Endpoints API (/api/...)
-│   │   │   ├── services/       # Logique métier & settings chiffrés
-│   │   │   ├── tasks/          # Tâches Celery
-│   │   │   ├── models.py       # Modèles SQLAlchemy
-│   │   │   └── schemas.py      # Schémas Pydantic
-│   │   ├── tests/              # Tests backend (pytest)
-│   │   └── alembic/            # Migrations de base de données
+│   │   │   ├── routers/        # API endpoints (/api/...)
+│   │   │   ├── services/       # Business logic & encrypted settings
+│   │   │   ├── tasks/          # Celery tasks
+│   │   │   ├── models.py       # SQLAlchemy models
+│   │   │   └── schemas.py      # Pydantic schemas
+│   │   ├── tests/              # Backend tests (pytest)
+│   │   └── alembic/            # Database migrations
 │   └── frontend/
 │       ├── src/
-│       │   ├── components/     # Composants réutilisables
+│       │   ├── components/     # Reusable UI components
 │       │   ├── pages/          # Dashboard, Discover, Queue, Wishlist, Settings, Media
 │       │   └── hooks/          # React Query hooks
 │       └── package.json
 └── README.md
 ```
 
-## 🔄 Tâches planifiées (Celery Beat)
+## 🔄 Scheduled Tasks (Celery Beat)
 
-| Tâche | Fréquence | Description |
-|-------|-----------|-------------|
-| `refresh_external_classics` | Hebdomadaire | Récupère les films/séries/animes populaires et bien notés sur TMDB et AniList. |
-| `sync_plex_library` | Manuelle / au démarrage | Scan complet de la bibliothèque Plex avec extraction des GUIDs externes. |
-| `sync_tautulli_stats` | Manuelle | Récupère les statistiques de visionnage Tautulli. |
+| Task | Frequency | Description |
+|------|-----------|-------------|
+| `refresh_external_classics` | Weekly | Fetch popular & top-rated movies, series, and animation from TMDB + AniList. |
+| `sync_plex_library` | Manual / nightly | Full Plex library scan with external GUID extraction. |
+| `sync_tautulli_stats` | Manual | Fetch watch statistics from Tautulli. |
 
-## 🛠️ Développement
+## 🛠️ Development
 
-### Lancer les tests
+### Run tests
 
-**Backend :**
+**Backend:**
 
 ```bash
 docker compose --env-file .env run --rm --no-deps worker python -m pytest tests/ -v
 ```
 
-**Frontend :**
+**Frontend:**
 
 ```bash
 cd app/frontend
 npm test
 ```
 
-### Rebuild après modification
+### Rebuild after changes
 
 ```bash
 docker compose build app worker scheduler
 docker compose up -d
 ```
 
-> Le frontend est buildé une seule fois dans l'image Docker. Il n'y a pas de hot-reload en conteneur.
+> The frontend is built once into the Docker image. There is no hot-reload inside the container.
 
-## 🛡️ Exclusions de contenu
+## 🛡️ Content Exclusions
 
-- ❌ **Horreur** (genre TMDB id 27)
-- ❌ **Adulte / Érotique** (genres Adult, Erotica, mots-clés explicites)
-- ❌ **Hentai / Ecchi** (genres AniList correspondants)
+- ❌ **Horror** (TMDB genre id 27)
+- ❌ **Adult / Erotic** (Adult, Erotica genres, explicit keywords)
+- ❌ **Hentai / Ecchi** (corresponding AniList genres)
 
-## 📝 Variables d'environnement
+## 📝 Environment Variables
 
-Seules les variables d'infrastructure sont nécessaires. Toutes les clés de plateformes se configurent dans l'UI.
+Only infrastructure variables are required. All platform keys are configured through the UI.
 
 ```env
 DATABASE_URL=postgresql+asyncpg://mli:mli@db:5432/mli
@@ -210,10 +211,10 @@ SECRET_KEY=change-me-to-a-random-string-of-at-least-32-characters
 
 ## 📜 License
 
-MIT — voir le fichier [LICENSE](LICENSE).
+MIT — see the [LICENSE](LICENSE) file.
 
 ---
 
 <p align="center">
-  Fait avec ❤️ pour les bibliothèques Plex un peu trop chaotiques.
+  Made with ❤️ for slightly chaotic Plex libraries.
 </p>
