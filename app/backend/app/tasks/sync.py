@@ -25,6 +25,36 @@ logger = logging.getLogger(__name__)
 EXCLUDED_GENRE_IDS = {27}
 EXCLUDED_KEYWORDS = {"adult", "erotica", "pornographic", "hentai", "ecchi"}
 
+# AniList genres are free-text strings. Map the common ones to TMDB genre IDs
+# so that anime recommendations can be filtered by the same genre pills as movies/series.
+ANILIST_GENRE_TO_TMDB = {
+    "Action": 28,
+    "Adventure": 12,
+    "Comedy": 35,
+    "Drama": 18,
+    "Fantasy": 14,
+    "Horror": 27,
+    "Mahou Shoujo": 16,
+    "Mecha": 878,
+    "Music": 10402,
+    "Mystery": 9648,
+    "Psychological": 53,
+    "Romance": 10749,
+    "Sci-Fi": 878,
+    "Slice of Life": 18,
+    "Sports": 18,
+    "Supernatural": 14,
+    "Thriller": 53,
+}
+
+
+def _map_anilist_genres(anilist_genres):
+    """Convert a list of AniList genre strings to TMDB genre IDs."""
+    if not anilist_genres:
+        return []
+    mapped = {ANILIST_GENRE_TO_TMDB.get(g) for g in anilist_genres if g in ANILIST_GENRE_TO_TMDB}
+    return sorted(mapped)
+
 
 @shared_task(bind=True, max_retries=3)
 def sync_plex_library(self):
@@ -428,7 +458,7 @@ def refresh_external_classics(self, previous_result=None):
                         "score_external": a.get("score_external"),
                         "popularity": a.get("popularity"),
                         "poster_url": a.get("poster_url"),
-                        "genre_ids": [],
+                        "genre_ids": _map_anilist_genres(a.get("genre_ids")),
                         "is_recommended": True,
                     })
                 progress = 75 + int((page / 5) * 25)

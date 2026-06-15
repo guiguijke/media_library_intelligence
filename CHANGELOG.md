@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.2] - 2026-06-15
+
+### Fixed
+
+- Anime genre filtering now works by mapping AniList genres to TMDB genre IDs during external classics refresh.
+
 ## [1.1.1] - 2026-06-15
 
 ### Added
