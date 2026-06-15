@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.3] - 2026-06-15
+
+### Added
+
+- **Saga completion actions** on the Dashboard: incomplete TMDB collections now show "Add X missing" and "View missing" buttons.
+- `GET /api/dashboard/collections/{collection_id}/missing` returns the list of missing movies for a TMDB collection.
+- `POST /api/dashboard/collections/{collection_id}/add-to-radarr` adds all missing collection movies to Radarr in one click.
+- `useCollectionMissing` and `useAddCollectionToRadarr` React Query hooks for the new saga actions.
+
+### Changed
+
+- TMDB `get_collection_details` now returns each part with `tmdb_id`, `title`, `year` and `poster_url`.
+- `IncompleteCollection` schema now exposes `collection_id` and `missing_count`.
+
 ## [1.1.2] - 2026-06-15
 
 ### Fixed

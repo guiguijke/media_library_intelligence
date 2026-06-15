@@ -98,6 +98,47 @@ export function useDashboardStats() {
   })
 }
 
+export function useCollectionMissing(collectionId, enabled = true) {
+  return useQuery({
+    queryKey: ['dashboard', 'collection', collectionId, 'missing'],
+    queryFn: async () => {
+      const { data } = await client.get(`/dashboard/collections/${collectionId}/missing`)
+      return data
+    },
+    enabled: Boolean(collectionId) && enabled,
+  })
+}
+
+export function useAddCollectionToRadarr() {
+  const queryClient = useQueryClient()
+  const { addToast } = useToast()
+
+  return useMutation({
+    mutationFn: async (collectionId) => {
+      const { data } = await client.post(`/dashboard/collections/${collectionId}/add-to-radarr`)
+      return data
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['queue', 'radarr'] })
+      const added = data?.added?.length || 0
+      const failed = data?.failed?.length || 0
+      if (added > 0) {
+        addToast({ type: 'success', title: 'Radarr', message: `${added} movie(s) added` })
+      }
+      if (failed > 0) {
+        addToast({ type: 'error', title: 'Radarr', message: `${failed} movie(s) failed` })
+      }
+      if (added === 0 && failed === 0) {
+        addToast({ type: 'info', title: 'Radarr', message: 'No missing movies to add' })
+      }
+    },
+    onError: (err) => {
+      addToast({ type: 'error', title: 'Radarr', message: err?.response?.data?.detail || 'Failed to add collection' })
+    },
+  })
+}
+
 export function useMediaDetail(mediaId) {
   return useQuery({
     queryKey: ['media', mediaId],

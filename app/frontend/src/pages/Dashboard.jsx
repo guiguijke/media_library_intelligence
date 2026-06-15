@@ -1,5 +1,5 @@
 import { Film, Tv, Clapperboard, Baby, TrendingUp, RotateCcw, Clock, Sparkles } from 'lucide-react'
-import { useDashboardStats, useRecommendations, useBatchActions } from '../hooks/useMedia'
+import { useDashboardStats, useRecommendations, useBatchActions, useCollectionMissing, useAddCollectionToRadarr } from '../hooks/useMedia'
 import MediaCard from '../components/MediaCard'
 import MediaModal from '../components/MediaModal'
 import LoadingSkeleton from '../components/LoadingSkeleton'
@@ -48,6 +48,79 @@ function SectionCard({ icon: Icon, title, subtitle, children, delay = 0 }) {
         {subtitle && <span className="text-xs text-secondary bg-surface-elevated px-2 py-0.5 rounded-full">{subtitle}</span>}
       </div>
       {children}
+    </div>
+  )
+}
+
+function SagaRow({ col }) {
+  const [showMissing, setShowMissing] = useState(false)
+  const { data: missingData } = useCollectionMissing(col.collection_id, showMissing)
+  const addToRadarr = useAddCollectionToRadarr()
+  const hasCollectionId = Boolean(col.collection_id)
+
+  const handleAddMissing = () => {
+    if (!hasCollectionId) return
+    const count = col.missing_count || 0
+    if (count === 0) return
+    if (window.confirm(`Add ${count} missing movie(s) from "${col.name}" to Radarr?`)) {
+      addToRadarr.mutate(col.collection_id)
+    }
+  }
+
+  return (
+    <div className="p-3 rounded-lg bg-surface-elevated">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium truncate">{col.name}</p>
+          <p className="text-sm text-secondary">{col.owned} / {col.total} movies</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {hasCollectionId && col.missing_count > 0 && (
+            <button
+              onClick={handleAddMissing}
+              disabled={addToRadarr.isPending}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-50 transition-colors focus-ring"
+            >
+              {addToRadarr.isPending ? 'Adding...' : `Add ${col.missing_count} missing`}
+            </button>
+          )}
+          {hasCollectionId && (
+            <button
+              onClick={() => setShowMissing((s) => !s)}
+              className="text-xs text-secondary hover:text-primary underline focus-ring"
+            >
+              {showMissing ? 'Hide' : 'View missing'}
+            </button>
+          )}
+          <div className="w-32 h-2 bg-surface rounded-full overflow-hidden shrink-0">
+            <div
+              className="h-full bg-accent rounded-full"
+              style={{ width: `${(col.owned / col.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+      {showMissing && missingData?.missing && (
+        <div className="mt-3 space-y-2 border-t border-border pt-3">
+          {missingData.missing.length === 0 ? (
+            <p className="text-sm text-secondary">No missing movies detected.</p>
+          ) : (
+            missingData.missing.map((m) => (
+              <div key={m.tmdb_id} className="flex items-center gap-3 text-sm">
+                {m.poster_url ? (
+                  <img src={m.poster_url} alt={m.title} className="w-8 h-12 object-cover rounded bg-surface" />
+                ) : (
+                  <div className="w-8 h-12 bg-surface rounded flex items-center justify-center">
+                    <Film className="w-4 h-4 text-muted" />
+                  </div>
+                )}
+                <span className="truncate">{m.title}</span>
+                {m.year && <span className="text-secondary text-xs">({m.year})</span>}
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -104,18 +177,7 @@ export default function Dashboard() {
         {stats?.incomplete_collections && stats.incomplete_collections.length > 0 ? (
           <div className="space-y-3">
             {stats.incomplete_collections.map((col) => (
-              <div key={col.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-elevated">
-                <div>
-                  <p className="font-medium">{col.name}</p>
-                  <p className="text-sm text-secondary">{col.owned} / {col.total} movies</p>
-                </div>
-                <div className="w-32 h-2 bg-surface rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-accent rounded-full"
-                    style={{ width: `${(col.owned / col.total) * 100}%` }}
-                  />
-                </div>
-              </div>
+              <SagaRow key={col.id} col={col} />
             ))}
           </div>
         ) : (

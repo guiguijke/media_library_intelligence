@@ -221,6 +221,8 @@ class IncompleteCollection(BaseModel):
     name: str
     owned: int
     total: int
+    collection_id: Optional[int] = None
+    missing_count: Optional[int] = None
 
 
 class TrendItem(BaseModel):

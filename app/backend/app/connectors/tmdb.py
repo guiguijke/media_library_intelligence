@@ -249,6 +249,15 @@ class TMDBConnector:
             "total": len(data.get("parts", [])),
             "poster_url": self._build_poster(data.get("poster_path")),
             "backdrop_url": self._build_poster(data.get("backdrop_path")),
+            "parts": [
+                {
+                    "tmdb_id": p.get("id"),
+                    "title": p.get("title"),
+                    "year": int(p["release_date"][:4]) if p.get("release_date") else None,
+                    "poster_url": self._build_poster(p.get("poster_path")),
+                }
+                for p in data.get("parts", [])
+            ],
         }
 
     async def test_connection(self) -> bool:
