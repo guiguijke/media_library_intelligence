@@ -55,6 +55,7 @@ class ExternalClassics(Base):
     original_title = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
     category = Column(Enum(CategoryEnum), nullable=False, index=True)
+    genre_ids = Column(JSON, nullable=True)
     tmdb_id = Column(Integer, nullable=True, index=True)
     tvdb_id = Column(Integer, nullable=True, index=True)
     anilist_id = Column(Integer, nullable=True, index=True)

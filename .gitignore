@@ -228,5 +228,5 @@ app/frontend/dist/
 
 # Local screenshots / captures
 /screenshots/
-/*.png
+*.png
 

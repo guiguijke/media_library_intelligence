@@ -24,12 +24,6 @@
 
 ---
 
-<p align="center">
-  <img src="docs/screenshot-discover.png" alt="Discover page screenshot" width="85%">
-  <br>
-  <em>Discover page — personalized recommendations and smart filters</em>
-</p>
-
 ## ✨ Features
 
 | | |
