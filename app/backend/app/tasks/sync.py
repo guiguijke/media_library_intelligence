@@ -321,6 +321,7 @@ def refresh_external_classics(self, previous_result=None):
                         "score_external": m.get("vote_average"),
                         "popularity": m.get("popularity"),
                         "poster_url": m.get("poster_url"),
+                        "genre_ids": m.get("genre_ids", []),
                         "is_recommended": True,
                     })
                 progress = int((page / 20) * 40)
@@ -349,6 +350,7 @@ def refresh_external_classics(self, previous_result=None):
                         "score_external": s.get("vote_average"),
                         "popularity": s.get("popularity"),
                         "poster_url": s.get("poster_url"),
+                        "genre_ids": s.get("genre_ids", []),
                         "is_recommended": True,
                     })
                 progress = 40 + int((page / 10) * 30)
@@ -377,6 +379,7 @@ def refresh_external_classics(self, previous_result=None):
                     "score_external": a.get("vote_average"),
                     "popularity": a.get("popularity"),
                     "poster_url": a.get("poster_url"),
+                    "genre_ids": a.get("genre_ids", []),
                     "is_recommended": True,
                 })
             self.update_state(state="PROGRESS", meta={"progress": 75, "message": "Fetched animations"})
@@ -425,6 +428,7 @@ def refresh_external_classics(self, previous_result=None):
                         "score_external": a.get("score_external"),
                         "popularity": a.get("popularity"),
                         "poster_url": a.get("poster_url"),
+                        "genre_ids": [],
                         "is_recommended": True,
                     })
                 progress = 75 + int((page / 5) * 25)
@@ -506,6 +510,7 @@ def refresh_external_classics(self, previous_result=None):
                     score_external=item.get("score_external"),
                     popularity=item.get("popularity"),
                     poster_url=item.get("poster_url"),
+                    genre_ids=item.get("genre_ids"),
                     last_synced=datetime.now(timezone.utc),
                     is_recommended=item.get("is_recommended", False),
                 )
