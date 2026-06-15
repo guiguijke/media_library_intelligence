@@ -5,19 +5,25 @@ import MediaGrid from '../components/MediaGrid'
 import BatchActionBar from '../components/BatchActionBar'
 import { useRecommendations, useSearch } from '../hooks/useMedia'
 
+function parseIntParam(value) {
+  if (!value) return undefined
+  const n = parseInt(value, 10)
+  return Number.isNaN(n) ? undefined : n
+}
+
 export default function Discover() {
   const [searchParams] = useSearchParams()
   const searchQuery = searchParams.get('q') || ''
 
   const [filters, setFilters] = useState({
-    category: 'all',
-    genre: undefined,
-    yearMin: undefined,
-    yearMax: undefined,
-    ratingMin: undefined,
-    hideInPlex: true,
-    hideMonitored: true,
-    userId: undefined,
+    category: searchParams.get('category') || 'all',
+    genre: parseIntParam(searchParams.get('genre')),
+    yearMin: parseIntParam(searchParams.get('year_min')),
+    yearMax: parseIntParam(searchParams.get('year_max')),
+    ratingMin: searchParams.get('rating_min') ? parseFloat(searchParams.get('rating_min')) : undefined,
+    hideInPlex: searchParams.get('hide_in_plex') !== 'false',
+    hideMonitored: searchParams.get('hide_monitored') !== 'false',
+    userId: searchParams.get('user_id') || undefined,
   })
 
   const recommendationsQuery = useRecommendations(filters)

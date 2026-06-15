@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2026-06-15
+
+### Added
+
+- **Anime** category in Discover, separate from TV Shows and Animation.
+
+### Fixed
+
+- Discover filters now initialize from URL query parameters (`category`, `genre`, `year_min`, etc.).
+- TV Shows genre filter now works correctly when accessed via direct link or refreshed page.
+
 ## [1.1.0] - 2026-06-15
 
 ### Added

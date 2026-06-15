@@ -5,6 +5,7 @@ const categories = [
   { key: 'all', label: 'All' },
   { key: 'movie', label: 'Movies' },
   { key: 'series', label: 'TV Shows' },
+  { key: 'anime', label: 'Anime' },
   { key: 'animation', label: 'Animation' },
 ]
 
