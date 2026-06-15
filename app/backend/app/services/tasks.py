@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, desc
 from app.database import AsyncSessionLocal
 from app.models import TaskStatus
@@ -32,9 +32,9 @@ async def update_task_status(task_id: str, status: str = None, progress: int = N
             await db.commit()
 
 
-async def get_recent_tasks(limit: int = 20):
+async def get_recent_tasks(limit: int = 20, hours: int = 24):
     async with AsyncSessionLocal() as db:
-        since = datetime.utcnow() - timedelta(hours=24)
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
         result = await db.execute(
             select(TaskStatus)
             .where(TaskStatus.created_at >= since)

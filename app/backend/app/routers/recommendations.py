@@ -1,18 +1,24 @@
+import hashlib
 import logging
 import re
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.models import PlexLibrary, TautulliStats, ExternalClassics, CategoryEnum, RadarrQueue, SonarrQueue
 from app.schemas import RecommendationItem, RecommendationFilter, RecommendationResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/recommendations", tags=["recommendations"])
+router = APIRouter(
+    prefix="/recommendations",
+    tags=["recommendations"],
+    dependencies=[Depends(get_current_user)],
+)
 
 EXCLUDED_GENRE_IDS = {27}  # Horror
 EXCLUDED_KEYWORDS = {"adult", "erotica", "pornographic", "hentai", "ecchi"}
@@ -76,7 +82,6 @@ async def _get_plex_collections(db: AsyncSession) -> Dict[str, List[int]]:
 def _compute_relevance_score(
     item: ExternalClassics,
     user_genres: Dict[int, float],
-    plex_titles: set,
     collections: Dict[str, List[int]],
 ) -> float:
     # 1. Watch history fit (40%)
@@ -122,10 +127,11 @@ async def get_recommendations_get(
     year_min: int = None,
     year_max: int = None,
     rating_min: float = None,
-    hide_in_plex: bool = False,
+    hide_in_plex: bool = True,
     hide_monitored: bool = False,
     user_id: str = None,
     limit: int = 50,
+    offset: int = 0,
     db: AsyncSession = Depends(get_db),
 ) -> RecommendationResponse:
     categories = None if category in ("all", None) else category.split(",")
@@ -135,9 +141,12 @@ async def get_recommendations_get(
         genres=genres,
         min_year=year_min,
         max_year=year_max,
+        rating_min=rating_min,
+        hide_in_plex=hide_in_plex,
         hide_monitored=hide_monitored,
         user_id=user_id,
         limit=limit,
+        offset=offset,
     )
     return await _get_recommendations_logic(filters, db)
 
@@ -185,16 +194,17 @@ async def _get_recommendations_logic(
 
     recommendations = []
     for item in candidates:
-        if item.tmdb_id and item.tmdb_id in plex_tmdb_ids:
-            continue
-        if item.tvdb_id and item.tvdb_id in plex_tvdb_ids:
-            continue
-        if item.anilist_id and item.anilist_id in plex_anilist_ids:
-            continue
-        if item.title and _normalize_title(item.title) in plex_titles:
-            continue
-        if item.title and _root_title(item.title) in plex_root_titles:
-            continue
+        if filters.hide_in_plex:
+            if item.tmdb_id and item.tmdb_id in plex_tmdb_ids:
+                continue
+            if item.tvdb_id and item.tvdb_id in plex_tvdb_ids:
+                continue
+            if item.anilist_id and item.anilist_id in plex_anilist_ids:
+                continue
+            if item.title and _normalize_title(item.title) in plex_titles:
+                continue
+            if item.title and _root_title(item.title) in plex_root_titles:
+                continue
         if filters.hide_monitored and item.tmdb_id and str(item.tmdb_id) in monitored_ids:
             continue
         if filters.hide_monitored and item.anilist_id and str(item.anilist_id) in monitored_ids:
@@ -211,8 +221,10 @@ async def _get_recommendations_logic(
         if any(k in (item.original_title or "").lower() for k in EXCLUDED_KEYWORDS):
             continue
 
-        score = _compute_relevance_score(item, user_genres, plex_titles, collections)
+        score = _compute_relevance_score(item, user_genres, collections)
         if score <= 0:
+            continue
+        if filters.rating_min is not None and score < filters.rating_min:
             continue
 
         reasons = []
@@ -223,7 +235,13 @@ async def _get_recommendations_logic(
         if score >= 15 and any(_normalize_title(item.title or "").startswith(c) for c in collections):
             reasons.append("Completes a saga")
 
-        item_id = f"tmdb-{item.tmdb_id}" if item.tmdb_id else (f"anilist-{item.anilist_id}" if item.anilist_id else f"title-{hash(item.title)}")
+        if item.tmdb_id:
+            item_id = f"tmdb-{item.tmdb_id}"
+        elif item.anilist_id:
+            item_id = f"anilist-{item.anilist_id}"
+        else:
+            stable_hash = hashlib.md5(f"{item.title}:{item.year}".encode()).hexdigest()
+            item_id = f"title-{stable_hash}"
         recommendations.append(
             RecommendationItem(
                 id=item_id,
@@ -244,4 +262,12 @@ async def _get_recommendations_logic(
         )
 
     recommendations.sort(key=lambda x: x.score, reverse=True)
-    return {"items": recommendations[: filters.limit], "total": len(recommendations)}
+    total = len(recommendations)
+    start = filters.offset
+    end = start + filters.limit
+    return {
+        "items": recommendations[start:end],
+        "total": total,
+        "offset": filters.offset,
+        "limit": filters.limit,
+    }

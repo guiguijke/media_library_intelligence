@@ -49,11 +49,20 @@ class TMDBConnector:
         except Exception:
             pass
 
+    @staticmethod
+    def _is_jwt(token: str) -> bool:
+        """Detect TMDB read access tokens (JWT) vs legacy API keys."""
+        return isinstance(token, str) and token.count(".") == 2
+
     async def _request(self, endpoint: str, params: Optional[dict] = None) -> Optional[dict]:
         await self._init()
         url = f"{self.base_url}{endpoint}"
         query = params.copy() if params else {}
-        query["api_key"] = self.api_key
+        headers = {}
+        if self._is_jwt(self.api_key):
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        else:
+            query["api_key"] = self.api_key
         cache_key = f"tmdb:{endpoint}:{json.dumps(query, sort_keys=True)}"
 
         cached = await self._cache_get(cache_key)
@@ -65,7 +74,7 @@ class TMDBConnector:
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url, params=query)
+                response = await client.get(url, params=query, headers=headers)
                 response.raise_for_status()
                 data = response.json()
                 await self._cache_set(cache_key, json.dumps(data))
@@ -111,6 +120,7 @@ class TMDBConnector:
                 "original_title": item.get("original_name"),
                 "year": int(item["first_air_date"][:4]) if item.get("first_air_date") else None,
                 "genre_ids": item.get("genre_ids", []),
+                "original_language": item.get("original_language"),
                 "vote_average": item.get("vote_average"),
                 "vote_count": item.get("vote_count"),
                 "popularity": item.get("popularity"),
@@ -118,11 +128,12 @@ class TMDBConnector:
             })
         return results
 
-    async def discover_animation(self, filters: Optional[dict] = None) -> List[Dict[str, Any]]:
+    async def discover_animation(self, filters: Optional[dict] = None, page: int = 1) -> List[Dict[str, Any]]:
         params = {
             "with_genres": "16",
             "sort_by": "vote_average.desc",
             "vote_count.gte": 50,
+            "page": page,
         }
         if filters:
             params.update(filters)
@@ -185,7 +196,7 @@ class TMDBConnector:
         }
 
     async def get_tv_details(self, tmdb_id: int) -> Optional[Dict[str, Any]]:
-        data = await self._request(f"/tv/{tmdb_id}")
+        data = await self._request(f"/tv/{tmdb_id}", params={"append_to_response": "external_ids"})
         if not data:
             return None
         return {
@@ -199,6 +210,19 @@ class TMDBConnector:
             "popularity": data.get("popularity"),
             "poster_url": self._build_poster(data.get("poster_path")),
             "overview": data.get("overview"),
+            "tvdb_id": data.get("external_ids", {}).get("tvdb_id"),
+        }
+
+    async def get_collection_details(self, collection_id: int) -> Optional[Dict[str, Any]]:
+        data = await self._request(f"/collection/{collection_id}")
+        if not data:
+            return None
+        return {
+            "id": data.get("id"),
+            "name": data.get("name"),
+            "total": len(data.get("parts", [])),
+            "poster_url": self._build_poster(data.get("poster_path")),
+            "backdrop_url": self._build_poster(data.get("backdrop_path")),
         }
 
     async def test_connection(self) -> bool:

@@ -5,33 +5,38 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.models import (
     PlexLibrary,
-    SonarrQueue,
-    RadarrQueue,
-    Wishlist,
     TautulliStats,
+    TMDBCollection,
 )
 from app.schemas import DashboardStats, IncompleteCollection, TrendItem
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+router = APIRouter(
+    prefix="/dashboard",
+    tags=["dashboard"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("/stats", response_model=DashboardStats)
 async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardStats:
-    total_movies = await db.scalar(
-        select(func.count(PlexLibrary.id)).where(PlexLibrary.category == "movie")
-    )
-    total_series = await db.scalar(
-        select(func.count(PlexLibrary.id)).where(PlexLibrary.category == "series")
-    )
-    total_anime = await db.scalar(
-        select(func.count(PlexLibrary.id)).where(PlexLibrary.category == "anime")
-    )
-    total_cartoons = await db.scalar(
-        select(func.count(PlexLibrary.id)).where(PlexLibrary.category == "cartoon")
-    )
+    # Aggregate category counts in a single grouped query
+    category_counts = {
+        row.category: row.count
+        for row in (
+            await db.execute(
+                select(PlexLibrary.category, func.count(PlexLibrary.id).label("count"))
+                .group_by(PlexLibrary.category)
+            )
+        ).all()
+    }
+    total_movies = category_counts.get("movie", 0)
+    total_series = category_counts.get("series", 0)
+    total_anime = category_counts.get("anime", 0)
+    total_cartoons = category_counts.get("cartoon", 0)
 
     # Watch Trends: real data from TautulliStats joined with PlexLibrary
     trends = []
@@ -69,18 +74,36 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
         else:
             heuristic_items.append(item)
 
+    # Preload TMDB collection totals
+    collection_ids = list(collection_groups.keys())
+    collection_totals = {}
+    if collection_ids:
+        coll_result = await db.execute(
+            select(TMDBCollection.id, TMDBCollection.total, TMDBCollection.name).where(
+                TMDBCollection.id.in_(collection_ids)
+            )
+        )
+        for cid, total, name in coll_result.all():
+            collection_totals[cid] = (total, name)
+
     idx = 1
     for cid, data in sorted(collection_groups.items(), key=lambda x: len(x[1]["items"]), reverse=True):
-        if len(data["items"]) >= 2:
-            incomplete_collections.append(
-                IncompleteCollection(
-                    id=idx,
-                    name=data["name"],
-                    owned=len(data["items"]),
-                    total=len(data["items"]) + 1,
-                )
+        owned = len(data["items"])
+        if owned < 2:
+            continue
+        total, known_name = collection_totals.get(cid, (None, None))
+        if total is None:
+            total = owned + 1
+        name = known_name or data["name"]
+        incomplete_collections.append(
+            IncompleteCollection(
+                id=idx,
+                name=name,
+                owned=owned,
+                total=total,
             )
-            idx += 1
+        )
+        idx += 1
 
     # Fallback heuristic for items without TMDB collection
     raw_groups = {}

@@ -1,8 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import client from '../api/client'
 import { useToast } from '../contexts/ToastContext'
 
-export function useRecommendations(filters) {
+function buildRecommendationsParams(filters, pageParam = 0) {
   const params = new URLSearchParams()
   if (filters.category && filters.category !== 'all') {
     if (filters.category === 'animation') {
@@ -18,14 +18,74 @@ export function useRecommendations(filters) {
   if (filters.hideInPlex) params.set('hide_in_plex', 'true')
   if (filters.hideMonitored) params.set('hide_monitored', 'true')
   if (filters.userId) params.set('user_id', filters.userId)
+  params.set('limit', String(filters.limit || 50))
+  params.set('offset', String(pageParam))
+  return params
+}
 
-  return useQuery({
+export function useRecommendations(filters) {
+  const limit = filters.limit || 50
+
+  const query = useInfiniteQuery({
     queryKey: ['recommendations', filters],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
+      const params = buildRecommendationsParams(filters, pageParam)
       const { data } = await client.get(`/recommendations?${params.toString()}`)
       return data
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => {
+      const nextOffset = lastPage.offset + lastPage.items.length
+      return nextOffset < lastPage.total ? nextOffset : undefined
+    },
   })
+
+  const pages = query.data?.pages || []
+  const items = pages.flatMap((page) => page.items) || []
+  const total = pages[pages.length - 1]?.total || 0
+  const hasNextPage = query.hasNextPage
+  const fetchNextPage = query.fetchNextPage
+
+  return {
+    ...query,
+    data: { items, total },
+    hasNextPage,
+    fetchNextPage,
+  }
+}
+
+export function useSearch(q, filters = {}) {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (filters.category && filters.category !== 'all') {
+    if (filters.category === 'animation') {
+      params.set('category', 'anime,cartoon')
+    } else {
+      params.set('category', filters.category)
+    }
+  }
+  if (filters.yearMin) params.set('year_min', filters.yearMin)
+  if (filters.yearMax) params.set('year_max', filters.yearMax)
+  if (filters.offset) params.set('offset', String(filters.offset))
+  if (filters.limit) params.set('limit', String(filters.limit))
+
+  const query = useQuery({
+    queryKey: ['search', q, filters],
+    queryFn: async () => {
+      const { data } = await client.get(`/search?${params.toString()}`)
+      return data
+    },
+    enabled: Boolean(q && q.trim()),
+  })
+
+  const data = query.data
+  const hasNextPage = data ? data.total > data.offset + data.items.length : false
+
+  return {
+    ...query,
+    hasNextPage,
+    fetchNextPage: () => {},
+  }
 }
 
 export function useDashboardStats() {
@@ -38,17 +98,18 @@ export function useDashboardStats() {
   })
 }
 
-export function useUsers() {
+export function useMediaDetail(mediaId) {
   return useQuery({
-    queryKey: ['users'],
+    queryKey: ['media', mediaId],
     queryFn: async () => {
-      const { data } = await client.get('/activity/users')
-      return data?.users || []
+      const { data } = await client.get(`/media/${encodeURIComponent(mediaId)}`)
+      return data
     },
+    enabled: Boolean(mediaId),
   })
 }
 
-export function useQueueSonarr() {
+export function useQueueSonarr(enabled = true) {
   return useQuery({
     queryKey: ['queue', 'sonarr'],
     queryFn: async () => {
@@ -56,10 +117,11 @@ export function useQueueSonarr() {
       return data
     },
     refetchInterval: 5000,
+    enabled,
   })
 }
 
-export function useQueueRadarr() {
+export function useQueueRadarr(enabled = true) {
   return useQuery({
     queryKey: ['queue', 'radarr'],
     queryFn: async () => {
@@ -67,6 +129,7 @@ export function useQueueRadarr() {
       return data
     },
     refetchInterval: 5000,
+    enabled,
   })
 }
 
@@ -78,6 +141,77 @@ export function useWishlist() {
       return data
     },
   })
+}
+
+export function useRemoveFromWishlist() {
+  const queryClient = useQueryClient()
+  const { addToast } = useToast()
+
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data } = await client.delete(`/queue/wishlist/${id}`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      addToast({ type: 'success', title: 'Wishlist', message: 'Item removed' })
+    },
+    onError: (err) => {
+      addToast({ type: 'error', title: 'Wishlist', message: err?.response?.data?.detail || 'Failed to remove item' })
+    },
+  })
+}
+
+export function useSendWishlistToRadarr() {
+  const queryClient = useQueryClient()
+  const { addToast } = useToast()
+
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data } = await client.post(`/queue/wishlist/${id}/radarr`)
+      return data
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      queryClient.invalidateQueries({ queryKey: ['queue', 'radarr'] })
+      addToast({ type: 'success', title: 'Radarr', message: `${data.title || 'Movie'} added` })
+    },
+    onError: (err) => {
+      addToast({ type: 'error', title: 'Radarr', message: err?.response?.data?.detail || 'Failed to add movie' })
+    },
+  })
+}
+
+export function useSendWishlistToSonarr() {
+  const queryClient = useQueryClient()
+  const { addToast } = useToast()
+
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data } = await client.post(`/queue/wishlist/${id}/sonarr`)
+      return data
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      queryClient.invalidateQueries({ queryKey: ['queue', 'sonarr'] })
+      addToast({ type: 'success', title: 'Sonarr', message: `${data.title || 'Series'} added` })
+    },
+    onError: (err) => {
+      addToast({ type: 'error', title: 'Sonarr', message: err?.response?.data?.detail || 'Failed to add series' })
+    },
+  })
+}
+
+function buildWishlistPayload(items) {
+  return items.map((item) => ({
+    external_id: String(item.tmdb_id || item.anilist_id || item.tvdb_id || ''),
+    title: item.title,
+    category: item.category,
+    poster_url: item.poster_url,
+    tmdb_id: item.tmdb_id || null,
+    tvdb_id: item.tvdb_id || null,
+    anilist_id: item.anilist_id || null,
+  }))
 }
 
 export function useBatchActions() {
@@ -128,7 +262,7 @@ export function useBatchActions() {
 
   const addToWishlist = useMutation({
     mutationFn: async (items) => {
-      const { data } = await client.post('/batch/wishlist', { items })
+      const { data } = await client.post('/batch/wishlist', { items: buildWishlistPayload(items) })
       return data
     },
     onSuccess: (data) => {

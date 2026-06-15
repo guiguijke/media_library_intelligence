@@ -15,7 +15,7 @@ export function useRawSettings() {
   return useQuery({
     queryKey: ['settings', 'raw'],
     queryFn: async () => {
-      const { data } = await client.get('/settings/raw')
+      const { data } = await client.get('/settings')
       return data
     },
   })

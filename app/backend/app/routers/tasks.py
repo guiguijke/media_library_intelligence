@@ -1,12 +1,17 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Query
+
+from app.auth import get_current_user
 from app.services.tasks import get_recent_tasks
 
-router = APIRouter(tags=["tasks"])
+router = APIRouter(
+    tags=["tasks"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("/tasks")
-async def list_tasks():
-    tasks = await get_recent_tasks(limit=20)
+async def list_tasks(limit: int = Query(20, ge=1), hours: int = Query(24, ge=1)):
+    tasks = await get_recent_tasks(limit=limit, hours=hours)
     return [
         {
             "task_id": t.task_id,

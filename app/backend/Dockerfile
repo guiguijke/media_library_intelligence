@@ -1,4 +1,4 @@
-FROM python:3.11-slim as builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -7,20 +7,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev &
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-FROM python:3.11-slim
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends libpq5 curl && rm -rf /var/lib/apt/lists/* \
+    && groupadd -g 1000 mli \
+    && useradd -u 1000 -g mli -m -s /bin/bash mli
+
+RUN mkdir -p /app/data && chown -R mli:mli /app/data
 
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH=/root/.local/bin:$PATH
+    PATH=/home/mli/.local/bin:$PATH
 
-RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder --chown=mli:mli /root/.local /home/mli/.local
+COPY --chown=mli:mli . .
 
-COPY --from=builder /root/.local /root/.local
+USER mli
 
-COPY . .
-
-EXPOSE 3000
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]

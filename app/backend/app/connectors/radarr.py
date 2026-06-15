@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import httpx
+from app.connectors import ConnectorException
 from app.services.settings import get_setting
 
 logger = logging.getLogger(__name__)
@@ -32,9 +33,12 @@ class RadarrConnector:
                 if response.status_code == 204:
                     return None
                 return response.json()
-        except Exception as exc:
-            logger.error(f"Radarr API error ({url}): {exc}")
-            return None
+        except httpx.HTTPStatusError as exc:
+            logger.error(f"Radarr API HTTP error ({url}): {exc.response.status_code} - {exc.response.text}")
+            raise ConnectorException(f"Radarr API error: {exc.response.status_code}") from exc
+        except httpx.RequestError as exc:
+            logger.error(f"Radarr API request error ({url}): {exc}")
+            raise ConnectorException(f"Radarr API request failed: {exc}") from exc
 
     async def get_movies(self) -> List[Dict[str, Any]]:
         data = await self._request("GET", "/movie")
@@ -48,6 +52,12 @@ class RadarrConnector:
             return folders[0].get("path", "/movies")
         return "/movies"
 
+    async def _get_first_quality_profile(self) -> int:
+        profiles = await self._request("GET", "/qualityprofile")
+        if isinstance(profiles, list) and profiles:
+            return profiles[0].get("id", 1)
+        return 1
+
     async def add_movie(self, title: str, tmdb_id: int, quality_profile: Optional[int] = None, root_folder: Optional[str] = None) -> Optional[Dict[str, Any]]:
         search = await self._request("GET", "/movie/lookup", params={"term": f"tmdb:{tmdb_id}"})
         if not isinstance(search, list) or not search:
@@ -60,14 +70,20 @@ class RadarrConnector:
         # Radarr expects the full lookup object with overrides
         candidate.pop("id", None)
         candidate.pop("ratings", None)
-        candidate["qualityProfileId"] = quality_profile or 1
+        candidate["qualityProfileId"] = quality_profile or await self._get_first_quality_profile()
         candidate["rootFolderPath"] = root_folder or await self._get_root_folder()
         candidate["monitored"] = True
         candidate["addOptions"] = {"searchForMovie": True}
         result = await self._request("POST", "/movie", json_data=candidate)
+        if not result or not result.get("id"):
+            logger.warning(f"Radarr: failed to add movie {title}, response: {result}")
+            return None
         return result
 
     async def get_queue_status(self) -> List[Dict[str, Any]]:
+        await self._init()
+        if not self.base_url:
+            return []
         data = await self._request("GET", "/queue")
         if not data or "records" not in data:
             return []

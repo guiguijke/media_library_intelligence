@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTasks } from '../hooks/useTasks'
 import { useToast } from '../contexts/ToastContext'
-import { CheckCircle, XCircle, Loader2, Zap } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Zap, X, Minus, Maximize2 } from 'lucide-react'
 
 export default function TaskMonitor() {
   const { data: tasks } = useTasks()
   const { addToast } = useToast()
   const prevTasksRef = useRef([])
-  // Keep recently-completed tasks visible briefly for a smoother UX
   const [recentDone, setRecentDone] = useState([])
+  const [minimized, setMinimized] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
 
   const activeTasks = (tasks || []).filter((t) => t.status === 'running')
   const hasActive = activeTasks.length > 0 || recentDone.length > 0
@@ -35,7 +36,6 @@ export default function TaskMonitor() {
         message: success ? 'Completed successfully' : currentTask?.message || 'Failed',
       })
 
-      // Keep task visible in overlay for 3s after completion
       const doneTask = {
         ...currentTask,
         _doneAt: Date.now(),
@@ -49,25 +49,47 @@ export default function TaskMonitor() {
     prevTasksRef.current = tasks
   }, [tasks])
 
-  // Merge active + recently-done for display
+  useEffect(() => {
+    if (activeTasks.length > 0) {
+      setDismissed(false)
+    }
+  }, [activeTasks.length])
+
   const displayTasks = [
     ...activeTasks,
     ...recentDone.filter((d) => !activeTasks.find((a) => a.task_id === d.task_id)),
   ]
 
+  const showOverlay = hasActive && !dismissed && !minimized
+
   return (
     <>
-      {/* Main progress overlay - visible during sync + brief moment after */}
-      {hasActive && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-surface border border-border rounded-xl p-8 w-full max-w-md shadow-2xl mx-4">
+      {showOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in-up">
+          <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-md shadow-2xl mx-4">
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-accent/10 rounded-lg">
+              <div className="p-2 bg-accent/10 rounded-xl">
                 <Zap className="w-6 h-6 text-accent animate-pulse" />
               </div>
-              <div>
+              <div className="flex-1">
                 <h3 className="text-lg font-bold text-primary">Sync in progress</h3>
                 <p className="text-sm text-secondary">Please wait while we update your library</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setMinimized(true)}
+                  className="p-1.5 rounded-lg text-secondary hover:text-primary hover:bg-surface-elevated transition-colors focus-ring"
+                  title="Minimize"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setDismissed(true)}
+                  className="p-1.5 rounded-lg text-secondary hover:text-primary hover:bg-surface-elevated transition-colors focus-ring"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -102,9 +124,8 @@ export default function TaskMonitor() {
         </div>
       )}
 
-      {/* Sticky mini-bar for quick view */}
       {hasActive && (
-        <div className="sticky top-16 z-40 bg-surface/95 backdrop-blur border-b border-border px-4 py-2">
+        <div className="sticky top-16 z-40 bg-surface/95 backdrop-blur-xl border-b border-border px-4 py-2 animate-fade-in-up">
           <div className="max-w-7xl mx-auto flex items-center gap-3">
             <Loader2 className="w-4 h-4 animate-spin text-accent" />
             <span className="text-sm font-medium text-primary">
@@ -127,11 +148,18 @@ export default function TaskMonitor() {
                 }}
               />
             </div>
+            {minimized && (
+              <button
+                onClick={() => setMinimized(false)}
+                className="p-1 rounded-lg text-secondary hover:text-primary hover:bg-surface-elevated transition-colors focus-ring"
+                title="Expand"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       )}
-
-      {/* Global toasts rendered by ToastProvider */}
     </>
   )
 }

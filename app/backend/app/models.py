@@ -1,8 +1,7 @@
 import enum
-from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Boolean, Enum, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Boolean, Enum, Text, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -59,7 +58,7 @@ class ExternalClassics(Base):
     tmdb_id = Column(Integer, nullable=True, index=True)
     tvdb_id = Column(Integer, nullable=True, index=True)
     anilist_id = Column(Integer, nullable=True, index=True)
-    source_api = Column(String, nullable=False)
+    source_api = Column(String, nullable=False, index=True)
     source_list = Column(String, nullable=True)
     score_external = Column(Float, nullable=True)
     popularity = Column(Float, nullable=True)
@@ -96,8 +95,15 @@ class Wishlist(Base):
     category = Column(Enum(CategoryEnum), nullable=False)
     title = Column(String, nullable=False)
     poster_url = Column(String, nullable=True)
+    tmdb_id = Column(Integer, nullable=True, index=True)
+    tvdb_id = Column(Integer, nullable=True, index=True)
+    anilist_id = Column(Integer, nullable=True, index=True)
     added_at = Column(DateTime(timezone=True), default=func.now())
     notes = Column(Text, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("external_id", "category", name="uq_wishlist_external_id_category"),
+    )
 
 
 class AppSetting(Base):
@@ -113,7 +119,7 @@ class AppSetting(Base):
 class TaskStatus(Base):
     __tablename__ = "task_status"
     id = Column(Integer, primary_key=True)
-    task_id = Column(String, nullable=False, index=True)
+    task_id = Column(String, nullable=False, unique=True, index=True)
     task_name = Column(String, nullable=False)
     status = Column(String, nullable=False, default="pending")
     progress = Column(Integer, default=0)
@@ -129,3 +135,14 @@ class PlexLibraryMapping(Base):
     library_key = Column(String, nullable=False, unique=True)
     library_name = Column(String, nullable=False)
     category = Column(Enum(CategoryEnum), nullable=False)
+
+
+class TMDBCollection(Base):
+    __tablename__ = "tmdb_collections"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    total = Column(Integer, nullable=False, default=0)
+    poster_url = Column(String, nullable=True)
+    backdrop_url = Column(String, nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())

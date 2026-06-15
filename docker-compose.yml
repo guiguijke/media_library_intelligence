@@ -6,68 +6,109 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://mli:mli@db:5432/mli
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - DEBUG=${DEBUG:-False}
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - app_data:/app/data
+    networks:
+      - mli_network
+    restart: unless-stopped
 
   worker:
     build:
-      context: ./app
+      context: ./app/backend
       dockerfile: Dockerfile
-    command: celery -A app.celery_app worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql+asyncpg://mli:mli@db:5432/mli
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - DEBUG=${DEBUG:-False}
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - app_data:/app/data
+    networks:
+      - mli_network
+    restart: unless-stopped
 
   scheduler:
     build:
-      context: ./app
+      context: ./app/backend
       dockerfile: Dockerfile
-    command: celery -A app.celery_app beat --loglevel=info
+    command: celery -A app.celery_app beat --loglevel=info --schedule /app/data/celerybeat-schedule
     environment:
-      - DATABASE_URL=postgresql+asyncpg://mli:mli@db:5432/mli
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - DEBUG=${DEBUG:-False}
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - app_data:/app/data
+    networks:
+      - mli_network
+    restart: unless-stopped
 
   db:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=mli
-      - POSTGRES_PASSWORD=mli
-      - POSTGRES_DB=mli
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mli -d mli"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - mli_network
+    restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mli_network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
   app_data:
+
+networks:
+  mli_network:
+    driver: bridge

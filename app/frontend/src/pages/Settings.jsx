@@ -46,6 +46,12 @@ const TESTABLE = {
   Radarr: 'radarr',
 }
 
+const PLACEHOLDERS = {
+  TMDB_BASE_URL: 'https://api.themoviedb.org/3',
+  TMDB_IMAGE_BASE_URL: 'https://image.tmdb.org/t/p/w500',
+  ANILIST_BASE_URL: 'https://graphql.anilist.co',
+}
+
 const CATEGORY_OPTIONS = [
   { label: 'Movie', value: 'movie' },
   { label: 'TV Show', value: 'series' },
@@ -196,18 +202,18 @@ export default function Settings() {
 
   if (isLoading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="max-w-5xl mx-auto px-4 py-6 animate-fade-in-up">
         <div className="flex items-center gap-2 mb-6">
           <SettingsIcon className="w-6 h-6 text-accent" />
           <h1 className="text-2xl font-bold">Settings</h1>
         </div>
         <div className="space-y-4">
           {SECTIONS.map((section) => (
-            <div key={section.title} className="bg-surface border border-border rounded-lg p-5 animate-pulse">
-              <div className="h-5 bg-surface-elevated rounded w-1/4 mb-4" />
+            <div key={section.title} className="bg-surface border border-border rounded-xl p-5 animate-pulse">
+              <div className="h-5 bg-surface-elevated rounded-lg w-1/4 mb-4" />
               <div className="space-y-3">
                 {section.keys.map((k) => (
-                  <div key={k} className="h-10 bg-surface-elevated rounded" />
+                  <div key={k} className="h-10 bg-surface-elevated rounded-lg" />
                 ))}
               </div>
             </div>
@@ -219,12 +225,12 @@ export default function Settings() {
 
   if (isError) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="max-w-5xl mx-auto px-4 py-6 animate-fade-in-up">
         <div className="flex items-center gap-2 mb-6">
           <SettingsIcon className="w-6 h-6 text-accent" />
           <h1 className="text-2xl font-bold">Settings</h1>
         </div>
-        <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
+        <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
             <p className="font-medium">Failed to load settings</p>
@@ -236,7 +242,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className="max-w-5xl mx-auto px-4 py-6 animate-fade-in-up">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <SettingsIcon className="w-6 h-6 text-accent" />
@@ -245,14 +251,14 @@ export default function Settings() {
       </div>
 
       {showSuccess && (
-        <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3 text-green-400 mb-4">
+        <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3 text-green-400 mb-4">
           <CheckCircle className="w-5 h-5 shrink-0" />
           <span className="font-medium">Settings saved successfully</span>
         </div>
       )}
 
       {saveMutation.isError && (
-        <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 mb-4">
+        <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 mb-4">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
             <span className="font-medium">Failed to save settings</span>
@@ -263,7 +269,7 @@ export default function Settings() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {SECTIONS.map((section) => (
-          <div key={section.title} className="bg-surface border border-border rounded-lg p-5">
+          <div key={section.title} className="bg-surface border border-border rounded-xl p-5 card-glow">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">{section.title}</h2>
               {TESTABLE[section.title] && (
@@ -282,8 +288,8 @@ export default function Settings() {
                       type={meta.is_secret ? 'password' : 'text'}
                       value={formValues[key] ?? ''}
                       onChange={(e) => handleChange(key, e.target.value)}
-                      className="w-full bg-surface-elevated border border-border rounded-md px-3 py-2 text-sm text-primary placeholder:text-secondary/50 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent transition-colors"
-                      placeholder={meta.description || key}
+                      className="w-full bg-surface-elevated border border-border rounded-lg px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-transparent transition-all"
+                      placeholder={PLACEHOLDERS[key] || meta.description || key}
                     />
                   </div>
                 )
@@ -293,7 +299,7 @@ export default function Settings() {
         ))}
 
         {/* Plex Library Mapping */}
-        <div className="bg-surface border border-border rounded-lg p-5">
+        <div className="bg-surface border border-border rounded-xl p-5 card-glow">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Plex Library Mapping</h2>
             {librariesLoading && <Loader2 className="w-4 h-4 animate-spin text-secondary" />}
@@ -313,7 +319,7 @@ export default function Settings() {
                     <select
                       value={mappingValues[key] || ''}
                       onChange={(e) => handleMappingChange(key, e.target.value)}
-                      className="w-full bg-surface-elevated border border-border rounded-md px-3 py-2 text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent"
+                      className="w-full bg-surface-elevated border border-border rounded-lg px-3 py-2 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-transparent transition-all"
                     >
                       <option value="">Select category...</option>
                       {CATEGORY_OPTIONS.map((opt) => (
@@ -337,7 +343,7 @@ export default function Settings() {
                   type="button"
                   onClick={handleSaveMappings}
                   disabled={saveMappingsMutation.isPending}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-accent text-black hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-surface-elevated text-primary border border-border hover:bg-surface-hover focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {saveMappingsMutation.isPending ? (
                     <>
@@ -362,7 +368,7 @@ export default function Settings() {
           <button
             type="submit"
             disabled={saveMutation.isPending}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md text-sm font-medium bg-accent text-black hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saveMutation.isPending ? (
               <>

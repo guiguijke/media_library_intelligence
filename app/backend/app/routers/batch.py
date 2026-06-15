@@ -5,15 +5,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.models import RadarrQueue, SonarrQueue, Wishlist
 from app.schemas import BatchRadarrRequest, BatchSonarrRequest, BatchWishlistRequest, WishlistOut
+from app.connectors import ConnectorException
 from app.connectors.radarr import RadarrConnector
 from app.connectors.sonarr import SonarrConnector
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/batch", tags=["batch"])
+router = APIRouter(
+    prefix="/batch",
+    tags=["batch"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.post("/radarr")
@@ -48,7 +54,7 @@ async def batch_add_radarr(
                 added.append(tmdb_id)
             else:
                 failed.append(tmdb_id)
-        except Exception as exc:
+        except ConnectorException as exc:
             logger.error(f"Radarr batch add error for {tmdb_id}: {exc}")
             failed.append(tmdb_id)
 
@@ -65,9 +71,9 @@ async def batch_add_sonarr(
     added = []
     failed = []
 
-    for tmdb_id in payload.ids:
-        ext_id = str(tmdb_id)
-        title = f"tmdb:{tmdb_id}"
+    for raw_id in payload.ids:
+        ext_id = str(raw_id)
+        title = f"tvdb:{raw_id}"
 
         existing = await db.scalar(
             select(SonarrQueue).where(SonarrQueue.external_id == ext_id)
@@ -76,12 +82,20 @@ async def batch_add_sonarr(
             continue
 
         try:
+            # Try tvdb_id first, then fallback to tmdb_id
             result = await connector.add_series(
                 title=title,
-                tmdb_id=tmdb_id,
-                tvdb_id=None,
+                tmdb_id=None,
+                tvdb_id=raw_id,
                 quality_profile=payload.quality_profile,
             )
+            if not result:
+                result = await connector.add_series(
+                    title=f"tmdb:{raw_id}",
+                    tmdb_id=raw_id,
+                    tvdb_id=None,
+                    quality_profile=payload.quality_profile,
+                )
             if result:
                 queue_item = SonarrQueue(
                     external_id=ext_id,
@@ -92,7 +106,7 @@ async def batch_add_sonarr(
                 added.append(ext_id)
             else:
                 failed.append(ext_id)
-        except Exception as exc:
+        except ConnectorException as exc:
             logger.error(f"Sonarr batch add error for {ext_id}: {exc}")
             failed.append(ext_id)
 
@@ -120,6 +134,9 @@ async def batch_add_wishlist(
             category=item.category,
             title=item.title,
             poster_url=item.poster_url,
+            tmdb_id=item.tmdb_id,
+            tvdb_id=item.tvdb_id,
+            anilist_id=item.anilist_id,
             notes=item.notes,
         )
         db.add(wl)

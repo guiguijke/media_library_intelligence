@@ -1,19 +1,35 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.auth import get_current_admin
 from app.connectors.plex import PlexConnector
 from app.connectors.tautulli import TautulliConnector
 from app.connectors.tmdb import TMDBConnector
 from app.connectors.sonarr import SonarrConnector
 from app.connectors.radarr import RadarrConnector
 
-router = APIRouter(prefix="/test", tags=["test"])
+router = APIRouter(
+    prefix="/test",
+    tags=["test"],
+    dependencies=[Depends(get_current_admin)],
+)
 
 
 async def _test_connector(name, connector, test_method):
     try:
         ok = await getattr(connector, test_method)()
-        return {"name": name, "ok": bool(ok), "message": "Connected" if ok else "No response"}
     except Exception as exc:
-        return {"name": name, "ok": False, "message": str(exc)}
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{name} connection failed: {exc}",
+        ) from exc
+
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{name} did not respond or returned an invalid status.",
+        )
+
+    return {"name": name, "ok": True, "message": "Connected"}
 
 
 @router.get("/plex")
@@ -24,16 +40,6 @@ async def test_plex():
 @router.get("/tautulli")
 async def test_tautulli():
     return await _test_connector("Tautulli", TautulliConnector(), "test_connection")
-
-
-@router.get("/tautulli/raw")
-async def test_tautulli_raw():
-    connector = TautulliConnector()
-    try:
-        raw = await connector._request("get_activity")
-        return {"ok": True, "raw": raw}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
 
 
 @router.get("/tmdb")

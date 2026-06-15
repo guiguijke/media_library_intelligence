@@ -173,7 +173,7 @@ class TautulliConnector:
 
     async def test_connection(self) -> bool:
         try:
-            data = await self._request("get_servers")
+            data = await self._request("get_servers_info")
             return data is not None
         except Exception:
             return False

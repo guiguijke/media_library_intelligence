@@ -1,7 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.auth import get_current_user
 from app.connectors.tautulli import TautulliConnector
 
-router = APIRouter(prefix="/activity", tags=["activity"])
+router = APIRouter(
+    prefix="/activity",
+    tags=["activity"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("/now")

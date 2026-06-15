@@ -17,6 +17,8 @@ import {
   useUsersStats,
   useTopWatched,
 } from '../hooks/useActivity'
+import EmptyState from '../components/EmptyState'
+import ShimmerSkeleton from '../components/ShimmerSkeleton'
 
 /* ─── Helpers ─── */
 
@@ -87,12 +89,12 @@ function NowPlayingSkeleton() {
       {Array.from({ length: 3 }).map((_, i) => (
         <div
           key={i}
-          className="min-w-[280px] bg-surface border border-border rounded-lg p-4 animate-pulse"
+          className="min-w-[280px] bg-surface border border-border rounded-xl p-4"
         >
-          <div className="h-4 bg-surface-elevated rounded w-1/2 mb-3" />
-          <div className="h-5 bg-surface-elevated rounded w-3/4 mb-2" />
-          <div className="h-2 bg-surface-elevated rounded w-full mb-2" />
-          <div className="h-3 bg-surface-elevated rounded w-1/3" />
+          <ShimmerSkeleton className="h-4 w-1/2 mb-3" />
+          <ShimmerSkeleton className="h-5 w-3/4 mb-2" />
+          <ShimmerSkeleton className="h-2 w-full mb-2" />
+          <ShimmerSkeleton className="h-3 w-1/3" />
         </div>
       ))}
     </div>
@@ -101,9 +103,9 @@ function NowPlayingSkeleton() {
 
 function HistorySkeleton() {
   return (
-    <div className="space-y-2 animate-pulse">
+    <div className="space-y-2">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="h-10 bg-surface-elevated rounded" />
+        <ShimmerSkeleton key={i} className="h-10 w-full" />
       ))}
     </div>
   )
@@ -113,10 +115,10 @@ function UserStatsSkeleton() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="bg-surface border border-border rounded-lg p-4 animate-pulse">
-          <div className="h-5 bg-surface-elevated rounded w-1/2 mb-3" />
-          <div className="h-4 bg-surface-elevated rounded w-3/4 mb-2" />
-          <div className="h-2 bg-surface-elevated rounded w-full" />
+        <div key={i} className="bg-surface border border-border rounded-xl p-4">
+          <ShimmerSkeleton className="h-5 w-1/2 mb-3" />
+          <ShimmerSkeleton className="h-4 w-3/4 mb-2" />
+          <ShimmerSkeleton className="h-2 w-full" />
         </div>
       ))}
     </div>
@@ -127,9 +129,9 @@ function TopWatchedSkeleton() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="bg-surface border border-border rounded-lg p-4 animate-pulse">
-          <div className="h-5 bg-surface-elevated rounded w-3/4 mb-2" />
-          <div className="h-4 bg-surface-elevated rounded w-1/2" />
+        <div key={i} className="bg-surface border border-border rounded-xl p-4">
+          <ShimmerSkeleton className="h-5 w-3/4 mb-2" />
+          <ShimmerSkeleton className="h-4 w-1/2" />
         </div>
       ))}
     </div>
@@ -143,11 +145,13 @@ function NowPlayingSection() {
   const sessions = data?.sessions || []
 
   return (
-    <section className="bg-surface border border-border rounded-lg p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Play className="w-5 h-5 text-accent" />
-        <h2 className="text-lg font-semibold">Now Playing</h2>
-        <span className="text-xs text-secondary bg-surface-elevated px-2 py-0.5 rounded-full ml-auto">
+    <section className="bg-surface border border-border rounded-xl p-5 animate-fade-in-up">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Play className="w-5 h-5 text-accent" />
+          <h2 className="text-lg font-semibold">Now Playing</h2>
+        </div>
+        <span className="text-xs text-secondary bg-surface-elevated px-2 py-0.5 rounded-full">
           {isLoading ? '…' : `${sessions.length} session${sessions.length !== 1 ? 's' : ''}`}
         </span>
       </div>
@@ -155,7 +159,11 @@ function NowPlayingSection() {
       {isLoading ? (
         <NowPlayingSkeleton />
       ) : sessions.length === 0 ? (
-        <p className="text-secondary text-sm">No active sessions.</p>
+        <EmptyState
+          icon={Pause}
+          title="No active sessions"
+          description="Start playing something on Plex and it will appear here."
+        />
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {sessions.map((session) => {
@@ -173,7 +181,7 @@ function NowPlayingSection() {
             return (
               <div
                 key={session.session_key || session.id}
-                className="min-w-[280px] max-w-[320px] flex-1 bg-surface-elevated border border-border rounded-lg p-4 space-y-3"
+                className="min-w-[280px] max-w-[320px] flex-1 bg-surface-elevated border border-border rounded-xl p-4 space-y-3 card-glow"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -223,19 +231,23 @@ function WatchHistorySection() {
   const history = data?.history || []
 
   return (
-    <section className="bg-surface border border-border rounded-lg p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Clock className="w-5 h-5 text-accent" />
-        <h2 className="text-lg font-semibold">Watch History</h2>
-        <span className="text-xs text-secondary bg-surface-elevated px-2 py-0.5 rounded-full ml-auto">
-          Last 50
-        </span>
+    <section className="bg-surface border border-border rounded-xl p-5 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Clock className="w-5 h-5 text-accent" />
+          <h2 className="text-lg font-semibold">Watch History</h2>
+        </div>
+        <span className="text-xs text-secondary bg-surface-elevated px-2 py-0.5 rounded-full">Last 50</span>
       </div>
 
       {isLoading ? (
         <HistorySkeleton />
       ) : history.length === 0 ? (
-        <p className="text-secondary text-sm">No watch history yet.</p>
+        <EmptyState
+          icon={Clock}
+          title="No watch history yet"
+          description="Run a Tautulli sync to see what has been watched recently."
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -302,7 +314,7 @@ function UserStatsSection() {
   const maxTime = users.length > 0 ? Math.max(...users.map((u) => u.total_time_minutes || 0), 1) : 1
 
   return (
-    <section className="bg-surface border border-border rounded-lg p-5">
+    <section className="bg-surface border border-border rounded-xl p-5 animate-fade-in-up" style={{ animationDelay: '150ms' }}>
       <div className="flex items-center gap-2 mb-4">
         <ActivityIcon className="w-5 h-5 text-accent" />
         <h2 className="text-lg font-semibold">User Stats</h2>
@@ -311,16 +323,20 @@ function UserStatsSection() {
       {isLoading ? (
         <UserStatsSkeleton />
       ) : users.length === 0 ? (
-        <p className="text-secondary text-sm">No user stats available.</p>
+        <EmptyState
+          icon={ActivityIcon}
+          title="No user stats available"
+          description="Tautulli user data will appear here after a sync."
+        />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 stagger-children">
           {users.map((user) => {
             const plays = user.total_plays || 0
             const time = user.total_time_minutes || 0
             return (
               <div
                 key={user.user_id || user.username}
-                className="bg-surface-elevated border border-border rounded-lg p-4 space-y-3"
+                className="bg-surface-elevated border border-border rounded-xl p-4 space-y-3 card-glow"
               >
                 <p className="font-bold text-base">{user.username || 'Unknown'}</p>
 
@@ -361,21 +377,25 @@ function TopWatchedSection() {
   const items = data?.items || []
 
   return (
-    <section className="bg-surface border border-border rounded-lg p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <ActivityIcon className="w-5 h-5 text-accent" />
-        <h2 className="text-lg font-semibold">Top Watched</h2>
-        <span className="text-xs text-secondary bg-surface-elevated px-2 py-0.5 rounded-full ml-auto">
-          Top 20
-        </span>
+    <section className="bg-surface border border-border rounded-xl p-5 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <ActivityIcon className="w-5 h-5 text-accent" />
+          <h2 className="text-lg font-semibold">Top Watched</h2>
+        </div>
+        <span className="text-xs text-secondary bg-surface-elevated px-2 py-0.5 rounded-full">Top 20</span>
       </div>
 
       {isLoading ? (
         <TopWatchedSkeleton />
       ) : items.length === 0 ? (
-        <p className="text-secondary text-sm">No top watched data yet.</p>
+        <EmptyState
+          icon={ActivityIcon}
+          title="No top watched data yet"
+          description="Most-watched content will be ranked here after syncing Tautulli."
+        />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 stagger-children">
           {items.slice(0, 20).map((item, idx) => {
             const title =
               item.media_type === 'episode' && item.grandparent_title
@@ -384,7 +404,7 @@ function TopWatchedSection() {
             return (
               <div
                 key={item.id || idx}
-                className="bg-surface-elevated border border-border rounded-lg p-4 space-y-2 hover:border-accent/30 transition-colors"
+                className="bg-surface-elevated border border-border rounded-xl p-4 space-y-2 hover:border-accent/30 transition-colors card-glow"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium leading-tight line-clamp-2 flex-1" title={title}>
@@ -417,7 +437,7 @@ function TopWatchedSection() {
 
 export default function Activity() {
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8 animate-fade-in-up">
       <div>
         <h1 className="text-2xl font-bold">Activity</h1>
         <p className="text-secondary mt-1">Tautulli watch data and live sessions</p>

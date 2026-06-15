@@ -27,7 +27,7 @@ export function useUsers() {
     queryKey: ['activity', 'users'],
     queryFn: async () => {
       const { data } = await client.get('/activity/users')
-      return data
+      return data?.users || []
     },
   })
 }
