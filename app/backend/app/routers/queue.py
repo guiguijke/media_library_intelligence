@@ -12,6 +12,9 @@ from app.schemas import QueueItemOut, WishlistOut
 from app.connectors.sonarr import SonarrConnector
 from app.connectors.radarr import RadarrConnector
 from app.connectors import ConnectorException
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/queue",
@@ -185,6 +188,16 @@ async def list_radarr_queue(db: AsyncSession = Depends(get_db)):
         if item.id:
             live_items[item.id] = item
 
+    # Fetch current Radarr movies to prune imported/removed items from our DB
+    radarr_movies: dict[str, dict] = {}
+    try:
+        for m in await connector.get_movies():
+            tid = m.get("tmdbId")
+            if tid is not None:
+                radarr_movies[str(tid)] = m
+    except Exception as exc:
+        logger.warning(f"Failed to fetch Radarr movies for queue pruning: {exc}")
+
     # Merge with DB "added" items that aren't in the live queue yet
     result = await db.execute(select(RadarrQueue).order_by(RadarrQueue.added_at.desc()))
     db_items = result.scalars().all()
@@ -192,6 +205,11 @@ async def list_radarr_queue(db: AsyncSession = Depends(get_db)):
     merged = {**live_items}
     for db_item in db_items:
         key = db_item.external_id
+        radarr_movie = radarr_movies.get(key)
+        if radarr_movie and radarr_movie.get("hasFile"):
+            # Movie was imported; stop tracking it in our queue
+            await db.delete(db_item)
+            continue
         if key in merged:
             merged[key].added_at = db_item.added_at
         else:
@@ -205,6 +223,7 @@ async def list_radarr_queue(db: AsyncSession = Depends(get_db)):
                 added_at=db_item.added_at,
             )
 
+    await db.commit()
     return list(merged.values())
 
 

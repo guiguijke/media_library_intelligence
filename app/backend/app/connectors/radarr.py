@@ -84,10 +84,23 @@ class RadarrConnector:
         await self._init()
         if not self.base_url:
             return []
-        data = await self._request("GET", "/queue")
-        if not data or "records" not in data:
-            return []
-        return data["records"]
+        all_records: List[Dict[str, Any]] = []
+        page = 1
+        page_size = 1000
+        while True:
+            data = await self._request(
+                "GET", "/queue", params={"page": page, "pageSize": page_size, "includeMovie": "true"}
+            )
+            if not data or "records" not in data:
+                break
+            records = data["records"]
+            if not records:
+                break
+            all_records.extend(records)
+            if len(records) < page_size:
+                break
+            page += 1
+        return all_records
 
     async def test_connection(self) -> bool:
         try:
