@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -56,6 +58,29 @@ def _map_anilist_genres(anilist_genres):
     return sorted(mapped)
 
 
+def _plex_item_hash(item: dict, category: str) -> str:
+    """Return a stable hash of the Plex/TMDB fields we persist.
+
+    Items whose hash matches the stored ``PlexLibrary.sync_hash`` are skipped
+    on subsequent syncs, avoiding unnecessary database writes.
+    """
+    payload = {
+        "title": item.get("title"),
+        "original_title": item.get("original_title"),
+        "year": item.get("year"),
+        "category": category,
+        "genre_ids": sorted(item.get("genres") or []),
+        "collections": sorted(item.get("collections") or []),
+        "tmdb_id": item.get("tmdb_id"),
+        "tvdb_id": item.get("tvdb_id"),
+        "imdb_id": item.get("imdb_id"),
+        "collection_id": item.get("collection_id"),
+        "collection_name": item.get("collection_name"),
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 @shared_task(bind=True, max_retries=3)
 def sync_plex_library(self):
     logger.info("Starting Plex library sync")
@@ -105,7 +130,8 @@ def sync_plex_library(self):
             async with sem:
                 tmdb_id = item.get("tmdb_id")
                 cached = existing_movie_cache.get(tmdb_id)
-                if cached and cached.get("collection_id"):
+                if cached is not None:
+                    # Already enriched in a previous sync (even if collection is None)
                     item["collection_id"] = cached["collection_id"]
                     item["collection_name"] = cached["collection_name"]
                     return item
@@ -147,6 +173,16 @@ def sync_plex_library(self):
             mappings = (await db.execute(select(PlexLibraryMapping))).scalars().all()
             mapping_dict = {m.library_key: m.category for m in mappings}
 
+            # Load existing hashes once so unchanged items can be skipped cheaply
+            existing_hash_rows = await db.execute(
+                select(PlexLibrary.rating_key, PlexLibrary.sync_hash).where(
+                    PlexLibrary.rating_key.isnot(None)
+                )
+            )
+            existing_hash_map = {rk: h for rk, h in existing_hash_rows.all()}
+            skipped = 0
+            synced = 0
+
             for i, item in enumerate(items):
                 section_key = item.get("section_key")
                 section_type = item.get("section_type")
@@ -161,6 +197,12 @@ def sync_plex_library(self):
                     cat_enum = CategoryEnum.series
 
                 rating_key = item.get("rating_key")
+                item_hash = _plex_item_hash(item, category)
+
+                if rating_key and existing_hash_map.get(rating_key) == item_hash:
+                    skipped += 1
+                    continue
+
                 existing = None
                 if rating_key:
                     existing = await db.scalar(
@@ -181,6 +223,7 @@ def sync_plex_library(self):
                     existing.collection_id = item.get("collection_id")
                     existing.collection_name = item.get("collection_name")
                     existing.poster_url = None
+                    existing.sync_hash = item_hash
                     # added_date is intentionally preserved
                 else:
                     pl = PlexLibrary(
@@ -199,8 +242,10 @@ def sync_plex_library(self):
                         poster_url=None,
                         rating_key=rating_key,
                         added_date=datetime.now(timezone.utc),
+                        sync_hash=item_hash,
                     )
                     db.add(pl)
+                synced += 1
 
                 if i % max(1, count // 10) == 0:
                     progress = 60 + int((i / count) * 35)
@@ -230,8 +275,13 @@ def sync_plex_library(self):
 
             await db.commit()
 
-        await update_task_status(self.request.id, status="success", progress=100, result={"synced": count})
-        return {"synced": count}
+        await update_task_status(
+            self.request.id,
+            status="success",
+            progress=100,
+            result={"synced": synced, "skipped": skipped},
+        )
+        return {"synced": synced, "skipped": skipped}
 
     try:
         loop = asyncio.get_event_loop()
@@ -247,7 +297,7 @@ def sync_plex_library(self):
         except Exception:
             pass
         raise
-    logger.info(f"Plex library sync completed: {result['synced']} items")
+    logger.info(f"Plex library sync completed: {result['synced']} synced, {result['skipped']} skipped")
     return result
 
 

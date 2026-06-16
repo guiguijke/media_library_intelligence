@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.4] - 2026-06-16
+
+### Added
+
+- **Plex sync incremental mode**: unchanged movies and series are now skipped during Plex library sync.
+- Added `PlexLibrary.sync_hash` column and Alembic migration `0005_plex_library_sync_hash`.
+
+### Changed
+
+- `sync_plex_library` now computes a stable hash from synced fields and compares it with the stored `sync_hash` before writing.
+- TMDB collection enrichment cache now skips re-lookup for movies already known to have no collection.
+
+### Fixed
+
+- Plex library sync re-processed every item on every run, causing unnecessary database writes and TMDB API calls.
+
 ## [1.1.3] - 2026-06-15
 
 ### Added

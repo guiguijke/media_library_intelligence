@@ -34,6 +34,7 @@ class PlexLibrary(Base):
     poster_url = Column(String, nullable=True)
     rating_key = Column(String, nullable=True, index=True)
     added_date = Column(DateTime(timezone=True), default=func.now())
+    sync_hash = Column(String, nullable=True, index=True)
 
 
 class TautulliStats(Base):
