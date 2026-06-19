@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from typing import List
 
@@ -95,6 +96,43 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
         for cid, total, name in coll_result.all():
             collection_totals[cid] = (total, name)
 
+    # Determine which TMDB collections are actually incomplete so we only fetch
+    # details and Radarr state for collections that may need action.
+    incomplete_collection_ids: List[int] = []
+    for cid, data in collection_groups.items():
+        owned = len(data["items"])
+        if owned < 2:
+            continue
+        total, _ = collection_totals.get(cid, (None, None))
+        if total is None:
+            total = owned + 1
+        if owned < total:
+            incomplete_collection_ids.append(cid)
+
+    # Fetch collection details for incomplete TMDB collections
+    tmdb = TMDBConnector()
+    collection_details_cache: dict[int, dict] = {}
+    if incomplete_collection_ids:
+        sem = asyncio.Semaphore(5)
+
+        async def _load_collection(cid: int):
+            async with sem:
+                details = await tmdb.get_collection_details(cid)
+                if details:
+                    collection_details_cache[cid] = details
+
+        await asyncio.gather(*[_load_collection(cid) for cid in incomplete_collection_ids])
+
+    # Load current Radarr catalogue once to avoid proposing movies already monitored there
+    radarr_tmdb_ids: set[int] = set()
+    if incomplete_collection_ids:
+        try:
+            radarr = RadarrConnector()
+            radarr_movies = await radarr.get_movies()
+            radarr_tmdb_ids = {m.get("tmdbId") for m in radarr_movies if m.get("tmdbId")}
+        except Exception:
+            logger.exception("Failed to load Radarr movies for saga completion check")
+
     idx = 1
     for cid, data in sorted(collection_groups.items(), key=lambda x: len(x[1]["items"]), reverse=True):
         owned = len(data["items"])
@@ -103,8 +141,31 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
         total, known_name = collection_totals.get(cid, (None, None))
         if total is None:
             total = owned + 1
+        if owned >= total:
+            continue
+
         name = known_name or data["name"]
         missing_count = max(0, total - owned)
+        actionable_count = missing_count
+
+        if cid:
+            details = collection_details_cache.get(cid)
+            if details:
+                parts = details.get("parts", [])
+                missing_tmdb_ids = [
+                    p["tmdb_id"]
+                    for p in parts
+                    if p.get("tmdb_id") and p["tmdb_id"] not in owned_tmdb_ids
+                ]
+                actionable_missing = [tid for tid in missing_tmdb_ids if tid not in radarr_tmdb_ids]
+                total = len(parts) or total
+                missing_count = len(missing_tmdb_ids)
+                actionable_count = len(actionable_missing)
+
+        # Hide collections whose missing items are already in Radarr, and complete ones
+        if actionable_count <= 0:
+            continue
+
         incomplete_collections.append(
             IncompleteCollection(
                 id=idx,
@@ -113,6 +174,7 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
                 total=total,
                 collection_id=cid,
                 missing_count=missing_count,
+                actionable_missing_count=actionable_count,
             )
         )
         idx += 1
@@ -154,12 +216,16 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
         groups[prefix] = titles
 
     for prefix, titles in sorted(groups.items(), key=lambda x: len(x[1]), reverse=True):
+        owned = len(titles)
+        missing = 1
         incomplete_collections.append(
             IncompleteCollection(
                 id=idx,
                 name=prefix,
-                owned=len(titles),
-                total=len(titles) + 1,
+                owned=owned,
+                total=owned + 1,
+                missing_count=missing,
+                actionable_missing_count=missing,
             )
         )
         idx += 1

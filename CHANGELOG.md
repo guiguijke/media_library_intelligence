@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.5] - 2026-06-16
+
+### Added
+
+- **Actionable saga completion**: Dashboard saga cards now expose `actionable_missing_count`, counting only missing movies not already in Radarr.
+- Added a loading skeleton to the **Saga Completion** section while stats are loading.
+
+### Changed
+
+- Dashboard `/stats` now hides:
+  - complete TMDB collections (`owned == total`);
+  - incomplete collections whose missing items are already monitored in Radarr.
+- Heuristic title-based sagas now return `missing_count` and `actionable_missing_count`.
+
+### Fixed
+
+- The Dashboard showed "All sagas are complete" during the initial stats loading state.
+
 ## [1.1.4] - 2026-06-16
 
 ### Added

@@ -60,7 +60,7 @@ function SagaRow({ col }) {
 
   const handleAddMissing = () => {
     if (!hasCollectionId) return
-    const count = col.missing_count || 0
+    const count = col.actionable_missing_count || 0
     if (count === 0) return
     if (window.confirm(`Add ${count} missing movie(s) from "${col.name}" to Radarr?`)) {
       addToRadarr.mutate(col.collection_id)
@@ -75,13 +75,13 @@ function SagaRow({ col }) {
           <p className="text-sm text-secondary">{col.owned} / {col.total} movies</p>
         </div>
         <div className="flex items-center gap-3">
-          {hasCollectionId && col.missing_count > 0 && (
+          {hasCollectionId && col.actionable_missing_count > 0 && (
             <button
               onClick={handleAddMissing}
               disabled={addToRadarr.isPending}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-50 transition-colors focus-ring"
             >
-              {addToRadarr.isPending ? 'Adding...' : `Add ${col.missing_count} missing`}
+              {addToRadarr.isPending ? 'Adding...' : `Add ${col.actionable_missing_count} missing`}
             </button>
           )}
           {hasCollectionId && (
@@ -174,14 +174,20 @@ export default function Dashboard() {
 
       {/* Saga Completion */}
       <SectionCard title="Saga Completion" delay={100}>
-        {stats?.incomplete_collections && stats.incomplete_collections.length > 0 ? (
+        {statsLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-10 bg-surface-elevated rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : stats?.incomplete_collections && stats.incomplete_collections.length > 0 ? (
           <div className="space-y-3">
             {stats.incomplete_collections.map((col) => (
               <SagaRow key={col.id} col={col} />
             ))}
           </div>
         ) : (
-          <p className="text-secondary text-sm">No incomplete sagas detected.</p>
+          <p className="text-secondary text-sm">All sagas are complete.</p>
         )}
       </SectionCard>
 
